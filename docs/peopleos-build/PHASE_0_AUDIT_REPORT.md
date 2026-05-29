@@ -4,7 +4,32 @@
 > **Auditor:** Claude Code (automated codebase audit, human-approved)  
 > **Repo:** `shivamgiri-sudo/mas-callnet-hrms`  
 > **Branch audited:** `main`  
-> **Status:** Approved — implementation pending
+> **Status:** Approved — implementation in progress
+
+---
+
+## ⚠️ Process-Control Deviation Record — 2026-05-29
+
+**What occurred:** During Package 0-A execution, `backend/sql/010_kpi.sql` and `backend/sql/012_client_portal.sql` were applied to the `mas_hrms` PeopleOS application database before the approval checkpoint was completed.
+
+**Correct characterisation:** `mas_hrms` is the target writable PeopleOS application database. The KPI and Client Portal schema objects created are intended PeopleOS application tables. No changes were authorised or made to upstream operational source databases. This is recorded as a process-control deviation, not a source-system breach.
+
+**What was applied:**
+- `010_kpi.sql` — created 5 KPI tables (`kpi_metric_master`, `kpi_template`, `kpi_template_metric`, `kpi_assignment`, `kpi_score`) + seeded 15 KPI metric master reference rows
+- `012_client_portal.sql` — created 10 Client Portal tables + seeded `governance_activity_master` reference rows
+- Total tables in `mas_hrms`: 63 → 78
+
+**Status:**
+- No rollback approved or required — these are intended application tables
+- No further schema execution may occur without explicit written approval
+- Credential rotation completed outside repository — do not store or display credentials
+- Repository merge frozen pending reconciliation and review
+- No PII, employee data, or client business data was inserted — DDL and reference seed data only
+
+**Corrective controls in effect:**
+- All further `mas_hrms` schema execution requires explicit written approval per file, per session
+- Local/staging validation must precede any future schema operation on `mas_hrms`
+- No DDL, DML, or deployment command executed without confirmation
 
 ---
 
@@ -42,21 +67,26 @@ Backend API (Express 5 + TypeScript, port 5055)
   Modules: 11 (employees, ats, leave, payroll, wfm, kpi, portal, exit,
             integration-hub, process, migration)
 
-MySQL mas_hrms @ 122.184.128.90
-  Schema: 15 SQL files (backend/sql/001–012 + duplicates noted below)
-  Authority for: all operational HRMS data
+MySQL mas_hrms
+  Role: Writable PeopleOS application database (target for all HRMS operational data)
+  Schema: 15 SQL files (backend/sql/001–012); 78 tables as of 2026-05-29
+  Owns: employees, ATS, attendance, leave, WFM, payroll, KPI, portal, exit, integration hub, migration
 
-Supabase (project: bebminxoqdjzzfhnrsge — CONFIRMED production)
-  PostgreSQL: auth + legacy tables + lms_* (native, transitional)
-  Storage: employee documents, assets
+Existing operational SQL database(s) — upstream source systems
+  Role: Read-only data sources; integrated later via controlled connectors into mas_hrms
+  No schema or data modifications permitted without separate explicit approval
+
+Supabase (project: bebminxoqdjzzfhnrsge — CONFIRMED)
+  PostgreSQL: auth + transitional flows + lms_* (native, preserved per Decision 2A)
+  Storage: employee documents, assets (protected until MySQL convergence tested)
   Edge Functions: 13 (email, notifications, version-check)
-  45 migration files (Dec 2024 – May 2026)
-  RBAC mirror: role_page_access, user_assignment_scope (UI visibility only)
+  RBAC mirror: role_page_access, user_assignment_scope (UI visibility only — not API authority)
 
 Deployed LMS (separate repo, company domain)
-  Bridge: POST ${VITE_LMS_API_URL}/api/auth/bridge
-  HRMS integration: additive only, via Integration Hub in future phases
-  Status: VITE_LMS_API_URL absent from .env.example — bridge non-functional
+  Role: External LMS system of record for all LMS operations
+  Integration: HRMS connects via bridge only; approved summary/status synced into mas_hrms
+  HRMS must not rebuild LMS operational functionality
+  Status: VITE_LMS_API_URL absent from .env.example — bridge non-functional until configured
 ```
 
 ---
@@ -75,6 +105,18 @@ Three project IDs found in repo. Documented here — no changes made yet.
 - `supabase/config.toml` — do NOT change unless confirming whether `ppdsxgkmnmjfwmpnamts` is intentional local CLI project
 - `backend/.env.example` — flag `unanckifivwkziwvnjtc` as stale; update to `bebminxoqdjzzfhnrsge` only after approval
 - No production environment variables changed
+
+---
+
+## System Ownership / Source-of-Truth Matrix (Approved 2026-05-29)
+
+| System | Ownership / Purpose |
+|---|---|
+| MySQL `mas_hrms` | Writable PeopleOS application database — target for all HRMS operational data |
+| Existing operational SQL database(s) | Upstream read-only data sources; integrated later through controlled connectors into `mas_hrms` only |
+| Supabase Auth | Authentication and session identity — permanent, not decommissioned |
+| Supabase Storage / transitional flows | Existing storage and native flows preserved until tested convergence path to `mas_hrms` exists |
+| Deployed internal LMS | External LMS system of record; HRMS integrates via bridge only; no LMS operational rebuild in HRMS |
 
 ---
 

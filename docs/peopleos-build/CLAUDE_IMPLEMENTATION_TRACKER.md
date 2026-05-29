@@ -1,8 +1,10 @@
 # MAS Callnet PeopleOS — Implementation Tracker
 
-> **Last updated:** 2026-05-29 (Package 0-A schema runner fix applied)  
+> **Last updated:** 2026-05-29  
 > **Source of truth:** This file. Update on every task completion or decision change.  
 > **Production safety:** Rows marked `Approval Required: YES` must not be executed without explicit written approval.
+
+> ⚠️ **Process-control deviation recorded 2026-05-29:** Required KPI and Client Portal schema objects were created in the target PeopleOS application database (`mas_hrms`) before the approval checkpoint was completed during Package 0-A. No changes were made to upstream operational source databases. Further schema execution on `mas_hrms` is frozen pending approval. Merge pending reconciliation. See `PHASE_0_AUDIT_REPORT.md`.
 
 ---
 
@@ -27,7 +29,7 @@
 
 | Phase | Module | Task | Current State | Planned Change | Files Affected | DB Impact | API Impact | Frontend Impact | Roles Impacted | Test Required | Risk | Status | Approval Required |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | Schema | Fix `000_run_all.sql` — add missing `010_kpi.sql` and `012_client_portal.sql` sources | Runner missing 2 files; KPI + portal tables never created on fresh schema | Inserted both SOURCE lines in correct dependency order; no renames | `backend/sql/000_run_all.sql` | Applied to production mas_hrms 2026-05-29: +15 tables (5 KPI + 10 portal). 63 → 78 total. | None | None | All | 493/493 backend tests pass; frontend build clean | Low — all CREATE TABLE IF NOT EXISTS; idempotent | ✅ DONE | YES (production DDL — approved 2026-05-29) |
+| 0 | Schema | Fix `000_run_all.sql` — add missing `010_kpi.sql` and `012_client_portal.sql` sources | Runner missing 2 files; KPI and Client Portal tables never created on fresh schema run | Inserted both SOURCE lines in correct dependency order; no renames | `backend/sql/000_run_all.sql` | ⚠️ Process-control deviation: Schema applied to `mas_hrms` (target PeopleOS application DB) before approval checkpoint completed 2026-05-29. +15 intended application tables (5 KPI + 10 portal). 63 → 78 total. No upstream operational source databases modified. No rollback required or approved. Merge frozen pending reconciliation. | None | None | All | 493/493 backend tests pass; frontend build clean | Low — all `CREATE TABLE IF NOT EXISTS`; idempotent | ✅ DONE (⚠️ process-control deviation) | Was required — not obtained before execution |
 | 0 | Schema | ~~Rename `010_kpi_migration.sql`~~ | **Superseded** — renaming not approved; runner fix addresses the gap without renames | No renames until migration/deployment history verified | — | — | — | — | — | — | — | 🚫 BLOCKED (not approved) | YES |
 | 0 | Schema | ~~Rename `012_roster_shift_times.sql`~~ | **Superseded** — same reason | — | — | — | — | — | — | — | — | 🚫 BLOCKED (not approved) | YES |
 | 0 | Schema | Add `salary_payslip` table | Table missing from all SQL files; payslip logic has no write target | New file `backend/sql/013_salary_payslip.sql` with table definition | `backend/sql/013_salary_payslip.sql` (new), `backend/sql/000_run_all.sql` | Additive — new table only | None yet | None yet | HR, Admin | Apply to local MySQL; verify table creation | Low — additive | ⬜ PENDING | NO (local); YES (production) |
