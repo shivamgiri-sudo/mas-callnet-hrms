@@ -91,6 +91,7 @@ export const portalController = {
     assertProcessAccess(req);
     const period = (req.query.period as string) || currentPeriod();
     const paths = await portalGlideService.getGlidePaths(req.params.id, period);
+    await logAccess(req, `/portal/processes/${req.params.id}/glide-paths`);
     res.json({ data: paths });
   },
 
@@ -100,6 +101,7 @@ export const portalController = {
     const parsed = actionPlanFilterSchema.safeParse(req.query);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const items = await portalActionsService.list(req.params.id, parsed.data.metricId, parsed.data.status);
+    await logAccess(req, `/portal/processes/${req.params.id}/action-plans`);
     res.json({ data: items });
   },
 
@@ -108,6 +110,7 @@ export const portalController = {
     assertProcessAccess(req);
     const period = (req.query.period as string) || currentPeriod();
     const data = await portalGovernanceService.getChecklist(req.params.id, period);
+    await logAccess(req, `/portal/processes/${req.params.id}/governance`);
     res.json({ data });
   },
 
@@ -116,6 +119,7 @@ export const portalController = {
     assertProcessAccess(req);
     const period = (req.query.period as string) || currentPeriod();
     const data = await portalAttritionService.getAttrition(req.params.id, period);
+    await logAccess(req, `/portal/processes/${req.params.id}/attrition`);
     res.json({ data });
   },
 
@@ -124,12 +128,14 @@ export const portalController = {
     assertProcessAccess(req);
     const period = (req.query.period as string) || currentPeriod();
     const data = await portalCommentaryService.get(req.params.id, period);
+    await logAccess(req, `/portal/processes/${req.params.id}/commentary`);
     res.json({ data: data ?? null });
   },
 
   async acknowledgeCommentary(req: ClientAuthRequest, res: Response) {
     await assertCommentaryAccess(req);
     await portalCommentaryService.acknowledge(req.params.id, req.portalUser!.clientUserId);
+    await logAccess(req, `/portal/commentary/${req.params.id}/acknowledge`);
     res.json({ ok: true });
   },
 
@@ -138,6 +144,7 @@ export const portalController = {
     const parsed = replyCommentarySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     await portalCommentaryService.addReply(req.params.id, req.portalUser!.clientUserId, parsed.data.text);
+    await logAccess(req, `/portal/commentary/${req.params.id}/reply`);
     res.json({ ok: true });
   },
 

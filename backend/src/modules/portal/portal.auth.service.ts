@@ -50,6 +50,14 @@ export const portalAuthService = {
     }
   },
 
+  /**
+   * Returns true only when PORTAL_DEMO_BYPASS=true is explicitly set.
+   * Production default is false — never issues a token without OTP.
+   */
+  isDemoBypassEnabled(): boolean {
+    return env.PORTAL_DEMO_BYPASS === "true";
+  },
+
   async verifyOtp(email: string, otp: string): Promise<string> {
     const [rows] = await db.execute<RowDataPacket[]>(
       `SELECT id, otp_hash FROM portal_otp

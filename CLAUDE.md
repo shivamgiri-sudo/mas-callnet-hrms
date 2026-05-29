@@ -95,6 +95,13 @@ Treat these as protected unless the user explicitly approves replacement:
 10. No mock metrics in production flows. Demo tenants/data must be isolated and labelled.
 11. Do not push, merge, deploy or update production without user approval.
 
+## Database Boundary Rule (approved 2026-05-29)
+
+- `mas_hrms` is the dedicated writable PeopleOS / HRMS application database. All operational HRMS data lives here.
+- Existing operational production database(s) are upstream read-only source systems. Future integration must use controlled read-only connectors or sync flows into `mas_hrms` only. No upstream source schema or data modification without explicit written approval.
+- Supabase Auth remains the authentication and session identity system permanently.
+- MySQL `user_roles` is the authority for backend API access and sensitive-data enforcement. Supabase `role_page_access` is a transitional frontend UI visibility mirror only.
+
 ## Source-of-Truth Direction
 
 | Domain | Authoritative Source / Direction |

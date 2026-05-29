@@ -18,6 +18,7 @@ import { portalRouter } from "./modules/portal/portal.routes.js";
 import { atsRouter } from "./modules/ats/ats.routes.js";
 import { exitRouter } from "./modules/exit/exit.routes.js";
 import { migrationRouter } from "./modules/migration/migration.routes.js";
+import { accessRouter } from "./modules/access/access.routes.js";
 
 export const app = express();
 
@@ -65,6 +66,7 @@ app.use("/api/portal", portalRouter);
 app.use("/api/ats", atsRouter);
 app.use("/api/exit", exitRouter);
 app.use("/api/migration", migrationRouter);
+app.use("/api/access", accessRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
