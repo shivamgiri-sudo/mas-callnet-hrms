@@ -29,11 +29,14 @@
 **Corrective controls in effect:**
 - All further `mas_hrms` schema execution requires explicit written approval per file, per session
 - Local/staging validation must precede any future schema operation on `mas_hrms`
-- No DDL, DML, or deployment command executed without confirmation
+- No manual production deployment command was executed. Opening/updating the pull request triggered an automatic Vercel preview build/deployment through the repository integration. No frontend application-source changes are included in this PR.
+- No DDL, DML, or manual deployment command executed without confirmation
 
 ---
 
 ## Production Safety Restrictions
+
+> **Approval-control rule:** Every implementation task that changes code, schema, API behaviour, environment/configuration, data writes, access control, integrations, deployment settings or user-visible functionality requires an approved package before execution, even when local-only.
 
 The following actions require **explicit written approval** before execution. They are **never** performed autonomously:
 
@@ -98,12 +101,13 @@ Three project IDs found in repo. Documented here — no changes made yet.
 | ID | Location | Classification | Notes |
 |---|---|---|---|
 | `bebminxoqdjzzfhnrsge` | `src/integrations/supabase/client.ts` (hardcoded fallback), `NativeMigrationConsole.tsx`, `PROJECT_OVERVIEW.md` | **Production — owner-confirmed** | Active production project |
-| `ppdsxgkmnmjfwmpnamts` | `supabase/config.toml` line 1 | **Local Supabase CLI project** | Used by `supabase link`/`supabase start` tooling only; does not affect app runtime |
-| `unanckifivwkziwvnjtc` | `backend/.env.example` line 6 | **Stale / incorrect** | Appears nowhere else in codebase; `SUPABASE_URL` in `.env.example` points to wrong project |
+| `ppdsxgkmnmjfwmpnamts` | `supabase/config.toml` line 1 | **Unresolved Supabase CLI/config reference** | Purpose not yet confirmed — verify before any change |
+| `unanckifivwkziwvnjtc` | `backend/.env.example` line 6 | **Mismatched backend example reference** | Verify whether obsolete or staging reference before any replacement |
 
 **Phase 0 action for project IDs:**
-- `supabase/config.toml` — do NOT change unless confirming whether `ppdsxgkmnmjfwmpnamts` is intentional local CLI project
-- `backend/.env.example` — flag `unanckifivwkziwvnjtc` as stale; update to `bebminxoqdjzzfhnrsge` only after approval
+- `bebminxoqdjzzfhnrsge` — owner-confirmed active production Supabase project reference; use in all documentation
+- `ppdsxgkmnmjfwmpnamts` — unresolved; do NOT change `supabase/config.toml` until purpose verified
+- `unanckifivwkziwvnjtc` — mismatched; investigate `backend/.env.example` environment purpose before replacement; any config edit requires approval
 - No production environment variables changed
 
 ---
@@ -132,7 +136,7 @@ Three project IDs found in repo. Documented here — no changes made yet.
   - Role reconciliation/backfill plan (identify users in Supabase but not MySQL, and vice versa)
   - Mismatch reporting endpoint or script
   - Negative API access tests (assert 403 returned when role missing from MySQL even if present in Supabase)
-- Future: new backend endpoint `/api/access/roles` — writes MySQL first, then mirrors to Supabase
+- Future RBAC implementation candidate: after Phase 0-B design approval, propose controlled role-management endpoints and synchronisation behaviour. No endpoint structure or Supabase mirror-write behaviour is approved yet.
 
 ### Decision 2 — LMS Ownership (Option A with transition controls)
 
@@ -149,7 +153,7 @@ Three project IDs found in repo. Documented here — no changes made yet.
 - Authoritative production project: **`bebminxoqdjzzfhnrsge`**
 - All future documentation, configuration examples, and deployment references use this ID
 - Existing environment files inspected before any replacement (see analysis above)
-- `supabase/config.toml` `ppdsxgkmnmjfwmpnamts` may be correct local CLI config — do not change without verifying with CLI tooling
+- `supabase/config.toml` `ppdsxgkmnmjfwmpnamts` — unresolved reference; verify purpose before any change
 
 ---
 
@@ -231,7 +235,7 @@ Three project IDs found in repo. Documented here — no changes made yet.
 | P1-2 | Salary advance not deducted in payroll run — gap noted; deferred to Phase 5 | `payrollCalculate.service.ts` + `salary_advance_log` |
 | P1-3 | Working days hardcoded `26`; holiday calendar not integrated — gap noted; deferred to Phase 5 | `payrollCalculate.service.ts` |
 | P1-4 | `portal_access_log` table never written — audit trail broken | All `backend/src/modules/portal/portal.*.service.ts` |
-| P1-5 | `backend/.env.example` `SUPABASE_URL` points to stale project `unanckifivwkziwvnjtc` | `backend/.env.example:6` |
+| P1-5 | `backend/.env.example` `SUPABASE_URL` contains mismatched reference `unanckifivwkziwvnjtc` — environment purpose unverified; investigate before replacing | `backend/.env.example:6` |
 | P1-6 | `employee_bank_detail` table missing encryption at rest | `backend/sql/002_employees.sql` |
 | P1-7 | `migration_run` + `migration_row_log` tables — these tables already exist, created by `backend/sql/010_kpi_migration.sql` which is included in the schema runner. Task is VERIFICATION ONLY, not new schema build. Status: ⬜ PENDING (verify via read-only query after approval). Approval Required: NO. | All SQL files |
 | P1-8 | SQL file numbering conflicts: two `010_*` files, two `012_*` files; `000_run_all.sql` will fail partially | `backend/sql/` |
