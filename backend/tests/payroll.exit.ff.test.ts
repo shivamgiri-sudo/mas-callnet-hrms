@@ -240,8 +240,9 @@ describe("ffService.getFF", () => {
 describe("ffService.approveFF", () => {
   it("approves F&F and logs FULL_FINAL_APPROVED audit", async () => {
     exec
-      .mockResolvedValueOnce([[fakeFf], []])               // SELECT by id
-      .mockResolvedValueOnce([{ affectedRows: 1 }, []])    // UPDATE
+      // is_ff_provisional = 0 so approval can proceed
+      .mockResolvedValueOnce([[{ ...fakeFf, is_ff_provisional: 0 }], []])  // SELECT by id
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []])                    // UPDATE
       .mockResolvedValueOnce([[{ ...fakeFf, status: "approved", approved_by: "admin-1" }], []]); // getFF
 
     const result = await ffService.approveFF("ff-1", "admin-1");
@@ -260,37 +261,53 @@ describe("ffService.approveFF", () => {
   });
 
   it("throws when F&F is already paid", async () => {
-    exec.mockResolvedValueOnce([[{ ...fakeFf, status: "paid" }], []]);
+    exec.mockResolvedValueOnce([[{ ...fakeFf, status: "paid", is_ff_provisional: 0 }], []]);
     await expect(ffService.approveFF("ff-1", "admin-1")).rejects.toThrow("already paid");
+  });
+
+  it("blocks approval when is_ff_provisional = 1 (FIX H)", async () => {
+    exec.mockResolvedValueOnce([[{ ...fakeFf, is_ff_provisional: 1 }], []]);
+    await expect(ffService.approveFF("ff-1", "admin-1"))
+      .rejects.toThrow("Cannot approve F&F: calculation contains provisional statutory values");
   });
 });
 
 // ─── Gratuity Calculation ─────────────────────────────────────────────────────
 
 describe("ffService.calculateGratuity", () => {
-  it("returns 0 for tenure less than 5 years", () => {
+  it("returns pending_configuration when gratuityWageBase is undefined", () => {
+    const result = ffService.calculateGratuity("2020-01-01", "2026-01-01", undefined);
+    expect(result.status).toBe("pending_configuration");
+    expect(result.amount).toBe(0);
+  });
+
+  it("returns not_eligible for tenure less than 5 years", () => {
     const result = ffService.calculateGratuity("2022-01-01", "2026-05-29", 25000);
-    expect(result).toBe(0);
+    expect(result.status).toBe("not_eligible");
+    expect(result.amount).toBe(0);
   });
 
-  it("returns 0 for exactly 4 completed years", () => {
+  it("returns not_eligible for exactly 4 completed years", () => {
     const result = ffService.calculateGratuity("2022-05-01", "2026-04-30", 25000);
-    expect(result).toBe(0);
+    expect(result.status).toBe("not_eligible");
+    expect(result.amount).toBe(0);
   });
 
-  it("returns correct gratuity for 5+ completed years", () => {
+  it("returns draft with correct amount for 5+ completed years", () => {
     // Use 2020-01-01 to 2026-01-01 = 6.0 years; floor = 6
     // (25000 / 26) * 15 * 6 = 86538.46...
     const result = ffService.calculateGratuity("2020-01-01", "2026-01-01", 25000);
     const expected = Math.round((25000 / 26) * 15 * 6 * 100) / 100;
-    expect(result).toBeCloseTo(expected, 0);
-    expect(result).toBeGreaterThan(0);
+    expect(result.status).toBe("draft");
+    expect(result.amount).toBeCloseTo(expected, 0);
+    expect(result.amount).toBeGreaterThan(0);
   });
 
-  it("returns correct gratuity for 10 completed years", () => {
+  it("returns correct amount for 10 completed years", () => {
     const result = ffService.calculateGratuity("2016-01-01", "2026-01-01", 30000);
     const expected = Math.round((30000 / 26) * 15 * 10 * 100) / 100;
-    expect(result).toBeCloseTo(expected, 0);
+    expect(result.status).toBe("draft");
+    expect(result.amount).toBeCloseTo(expected, 0);
   });
 
   it("uses floor for tenure — 5.9 years counts as 5", () => {
@@ -298,39 +315,60 @@ describe("ffService.calculateGratuity", () => {
     const exit = new Date("2026-05-01"); // ~5.9 years
     const result = ffService.calculateGratuity(join, exit, 25000);
     const expected5 = Math.round((25000 / 26) * 15 * 5 * 100) / 100;
-    expect(result).toBeCloseTo(expected5, 0);
+    expect(result.status).toBe("draft");
+    expect(result.amount).toBeCloseTo(expected5, 0);
   });
 });
 
 // ─── LWP Deduction Calculation ────────────────────────────────────────────────
 
 describe("payrollGapsService.calculateLwpDeduction", () => {
-  it("returns correct LWP deduction", () => {
+  it("returns pending_configuration when lwpBasis is undefined", () => {
+    const result = payrollGapsService.calculateLwpDeduction(2, 300000, 26, undefined);
+    expect(result.status).toBe("pending_configuration");
+    expect(result.amount).toBe(0);
+  });
+
+  it("returns correct LWP deduction on ctc_annual basis", () => {
     // ctcAnnual=300000, workingDays=26, lwpDays=2
     // dailyRate = 300000/12/26 = 961.538...
     // deduction = 2 * 961.538 = 1923.08
-    const result = payrollGapsService.calculateLwpDeduction(2, 300000, 26);
+    const result = payrollGapsService.calculateLwpDeduction(2, 300000, 26, "ctc_annual");
     const expected = Math.round(2 * (300000 / 12 / 26) * 100) / 100;
-    expect(result).toBeCloseTo(expected, 1);
-    expect(result).toBeGreaterThan(0);
+    expect(result.status).toBe("configured");
+    expect(result.amount).toBeCloseTo(expected, 1);
+    expect(result.amount).toBeGreaterThan(0);
   });
 
-  it("returns 0 when lwpDays = 0", () => {
-    expect(payrollGapsService.calculateLwpDeduction(0, 300000, 26)).toBe(0);
+  it("returns 0 when lwpDays = 0 on ctc_annual basis", () => {
+    const result = payrollGapsService.calculateLwpDeduction(0, 300000, 26, "ctc_annual");
+    expect(result.status).toBe("configured");
+    expect(result.amount).toBe(0);
   });
 
-  it("returns 0 when ctcAnnual = 0", () => {
-    expect(payrollGapsService.calculateLwpDeduction(2, 0, 26)).toBe(0);
+  it("returns 0 when ctcAnnual = 0 on ctc_annual basis", () => {
+    const result = payrollGapsService.calculateLwpDeduction(2, 0, 26, "ctc_annual");
+    expect(result.status).toBe("configured");
+    expect(result.amount).toBe(0);
   });
 
-  it("returns 0 when workingDays = 0", () => {
-    expect(payrollGapsService.calculateLwpDeduction(2, 300000, 0)).toBe(0);
+  it("returns 0 when workingDays = 0 on ctc_annual basis", () => {
+    const result = payrollGapsService.calculateLwpDeduction(2, 300000, 0, "ctc_annual");
+    expect(result.status).toBe("configured");
+    expect(result.amount).toBe(0);
   });
 
-  it("correctly calculates for 5 LWP days", () => {
-    const result = payrollGapsService.calculateLwpDeduction(5, 360000, 26);
+  it("correctly calculates for 5 LWP days on ctc_annual basis", () => {
+    const result = payrollGapsService.calculateLwpDeduction(5, 360000, 26, "ctc_annual");
     const expected = Math.round(5 * (360000 / 12 / 26) * 100) / 100;
-    expect(result).toBeCloseTo(expected, 1);
+    expect(result.status).toBe("configured");
+    expect(result.amount).toBeCloseTo(expected, 1);
+  });
+
+  it("returns pending_configuration for eligible_gross basis (not yet implemented)", () => {
+    const result = payrollGapsService.calculateLwpDeduction(2, 300000, 26, "eligible_gross");
+    expect(result.status).toBe("pending_configuration");
+    expect(result.amount).toBe(0);
   });
 });
 
@@ -372,38 +410,79 @@ describe("payrollGapsService.calculateWorkingDaysFromHolidays", () => {
 // ─── TDS Projection ───────────────────────────────────────────────────────────
 
 describe("payrollGapsService.computeBasicTds", () => {
-  it("returns 0 for income below basic exemption (₹3L new regime)", async () => {
-    exec.mockResolvedValueOnce([[], []]);  // no slab config rows
-    const result = await payrollGapsService.computeBasicTds(250000);
-    expect(result).toBe(0);
-  });
-
-  it("returns non-zero for income above threshold", async () => {
-    exec.mockResolvedValueOnce([[], []]);
+  it("returns pending_configuration when no slab config rows exist", async () => {
+    // checkTdsConfigExists → COUNT=0; no second query
+    exec.mockResolvedValueOnce([[{ cnt: 0 }], []]);
     const result = await payrollGapsService.computeBasicTds(500000);
-    expect(result).toBeGreaterThan(0);
+    expect(result.status).toBe("pending_configuration");
+    expect(result.tds).toBe(0);
   });
 
-  it("returns 0 for zero income", async () => {
+  it("returns pending_configuration when slab limit keys are incomplete", async () => {
+    // checkTdsConfigExists → COUNT>0; slab query returns only 2 of 5 limits
+    exec
+      .mockResolvedValueOnce([[{ cnt: 2 }], []])
+      .mockResolvedValueOnce([[
+        { config_key: "tds_slab_1_limit", config_value: 300000 },
+        { config_key: "tds_slab_2_limit", config_value: 600000 },
+      ], []]);
+    const result = await payrollGapsService.computeBasicTds(500000);
+    expect(result.status).toBe("pending_configuration");
+    expect(result.tds).toBe(0);
+  });
+
+  it("returns configured with zero TDS for income = 0", async () => {
     const result = await payrollGapsService.computeBasicTds(0);
-    expect(result).toBe(0);
+    expect(result.status).toBe("configured");
+    expect(result.tds).toBe(0);
   });
 
-  it("uses statutory_config slab overrides when available", async () => {
-    exec.mockResolvedValueOnce([[
-      { config_key: "tds_slab_1_limit", config_value: 250000 },
-      { config_key: "tds_slab_2_limit", config_value: 500000 },
-    ], []]);
-    // With custom slab: 5% on 250000-500000 band
-    const result = await payrollGapsService.computeBasicTds(500000);
-    expect(result).toBeGreaterThan(0);
+  it("returns pending_configuration when slab rate keys are missing (no hardcoded fallback)", async () => {
+    // All 5 limit keys present, but NO rate keys — must not use hardcoded rates
+    exec
+      .mockResolvedValueOnce([[{ cnt: 5 }], []])
+      .mockResolvedValueOnce([[
+        { config_key: "tds_slab_1_limit", config_value: 300000 },
+        { config_key: "tds_slab_2_limit", config_value: 600000 },
+        { config_key: "tds_slab_3_limit", config_value: 900000 },
+        { config_key: "tds_slab_4_limit", config_value: 1200000 },
+        { config_key: "tds_slab_5_limit", config_value: 1500000 },
+        // intentionally NO rate keys
+      ], []]);
+    const result = await payrollGapsService.computeBasicTds(700000);
+    expect(result.status).toBe("pending_configuration");
+    expect(result.tds).toBe(0);
   });
 
-  it("falls back to defaults when statutory_config query fails", async () => {
+  it("computes correct TDS when all slab limit and rate keys are configured", async () => {
+    // checkTdsConfigExists → COUNT>0; full slab config
+    exec
+      .mockResolvedValueOnce([[{ cnt: 11 }], []])
+      .mockResolvedValueOnce([[
+        { config_key: "tds_slab_1_limit", config_value: 300000 },
+        { config_key: "tds_slab_2_limit", config_value: 600000 },
+        { config_key: "tds_slab_3_limit", config_value: 900000 },
+        { config_key: "tds_slab_4_limit", config_value: 1200000 },
+        { config_key: "tds_slab_5_limit", config_value: 1500000 },
+        { config_key: "tds_slab_1_rate",  config_value: 0 },
+        { config_key: "tds_slab_2_rate",  config_value: 0.05 },
+        { config_key: "tds_slab_3_rate",  config_value: 0.10 },
+        { config_key: "tds_slab_4_rate",  config_value: 0.15 },
+        { config_key: "tds_slab_5_rate",  config_value: 0.20 },
+        { config_key: "tds_slab_6_rate",  config_value: 0.30 },
+      ], []]);
+    // annualTaxable=700000: 0 on 0-300k + 5% on 300k-600k + 10% on 600k-700k
+    // = 0 + 15000 + 10000 = 25000
+    const result = await payrollGapsService.computeBasicTds(700000);
+    expect(result.status).toBe("configured");
+    expect(result.tds).toBeCloseTo(25000, 0);
+  });
+
+  it("returns pending_configuration when checkTdsConfigExists DB query throws", async () => {
     exec.mockRejectedValueOnce(new Error("DB error"));
-    // Should not throw; uses hardcoded defaults
     const result = await payrollGapsService.computeBasicTds(400000);
-    expect(typeof result).toBe("number");
+    expect(result.status).toBe("pending_configuration");
+    expect(result.tds).toBe(0);
   });
 });
 
