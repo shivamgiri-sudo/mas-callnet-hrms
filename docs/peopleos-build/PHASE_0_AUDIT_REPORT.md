@@ -24,7 +24,7 @@
 - No further schema execution may occur without explicit written approval
 - Credential rotation completed outside repository — do not store or display credentials
 - Repository merge frozen pending reconciliation and review
-- No PII, employee data, or client business data was inserted — DDL and reference seed data only
+- The applied SQL scripts add schema and reference master records only; any post-execution table-content reconciliation requires separately authorised read-only verification.
 
 **Corrective controls in effect:**
 - All further `mas_hrms` schema execution requires explicit written approval per file, per session
@@ -39,7 +39,7 @@ The following actions require **explicit written approval** before execution. Th
 
 | Action | Restriction |
 |---|---|
-| Run SQL on production MySQL (`122.184.128.90`) | Explicit approval per file |
+| Run SQL on production MySQL (production MySQL host) | Explicit approval per file |
 | Run `supabase db push` or apply migrations to prod Supabase | Explicit approval per migration |
 | `git push` to `main` | Explicit approval |
 | Deploy to Vercel (frontend) | Explicit approval |
@@ -86,7 +86,7 @@ Deployed LMS (separate repo, company domain)
   Role: External LMS system of record for all LMS operations
   Integration: HRMS connects via bridge only; approved summary/status synced into mas_hrms
   HRMS must not rebuild LMS operational functionality
-  Status: VITE_LMS_API_URL absent from .env.example — bridge non-functional until configured
+  Status: LMS integration mode is pending discovery and design — integration mechanism not yet approved.
 ```
 
 ---
@@ -157,26 +157,26 @@ Three project IDs found in repo. Documented here — no changes made yet.
 
 | Module | Status | Notes |
 |---|---|---|
-| Employees | ✅ Working | `/api/employees` ↔ MySQL |
-| ATS | ✅ Working | `/api/ats` ↔ MySQL |
-| Leave | ✅ Working | `/api/leave` ↔ MySQL |
-| WFM Roster | ✅ Working | `/api/wfm/roster` ↔ MySQL; `NativeWFMRoster` uses hrmsApi |
-| WFM Live Tracker | ⚠️ Backend-only | `liveTracker.service.ts` + `/api/wfm/live` exist; App.tsx routes `/wfm/live-tracker` → `NativePlaceholderPage` |
-| Payroll | ⚠️ Partial | Structure/runs/calc exist; TDS=0; no advance deduction; working_days hardcoded=26; `salary_payslip` table missing |
-| KPI | ✅ Working | `/api/kpi` ↔ MySQL |
-| Client Portal | ✅ Working | OTP auth, dual JWT, 9 service files, 3 frontend pages |
-| Exit | ✅ Working | `/api/exit` ↔ MySQL |
-| Integration Hub | ✅ Working | `/api/integration-hub` ↔ MySQL |
-| Process | ✅ Working | `/api/processes` ↔ MySQL |
+| Employees | foundation present / runtime and security validation pending | `/api/employees` ↔ MySQL |
+| ATS | foundation present / runtime and security validation pending | `/api/ats` ↔ MySQL |
+| Leave | foundation present / runtime and security validation pending | `/api/leave` ↔ MySQL |
+| WFM Roster | foundation present / runtime and security validation pending | `/api/wfm/roster` ↔ MySQL; `NativeWFMRoster` uses hrmsApi |
+| WFM Live Tracker | ⚠️ Backend-only | `liveTracker.service.ts` + `/api/wfm/live` exist; App.tsx routes `/wfm/live-tracker` → `NativePlaceholderPage` — current route resolves through an active wrapper; runtime and data behaviour requires validation; direct route wiring is optional refactoring deferred to Phase 4 or later |
+| Payroll | ⚠️ Partial | Structure/runs/calc exist; TDS=0; no advance deduction; working_days hardcoded=26; `salary_payslip` table missing — all payroll coding tasks deferred to Phase 5 |
+| KPI | foundation present / runtime and security validation pending | `/api/kpi` ↔ MySQL |
+| Client Portal | foundation present / runtime and security validation pending | OTP auth, dual JWT, 9 service files, 3 frontend pages |
+| Exit | foundation present / runtime and security validation pending | `/api/exit` ↔ MySQL |
+| Integration Hub | foundation present / runtime and security validation pending | `/api/integration-hub` ↔ MySQL |
+| Process | foundation present / runtime and security validation pending | `/api/processes` ↔ MySQL |
 | Migration Console | ⚠️ Partial | Row count only; no Supabase→MySQL migration logic |
 | Assets | 🔵 Frontend/Supabase only | `useAssets.ts` → Supabase `assets`+`asset_assignments`; no backend route; **PROTECTED — do not remove** |
 | Documents | 🔵 Frontend/Supabase only | `useEmployeeDocuments.ts` → Supabase Storage + `employee_documents`; **PROTECTED — do not remove** |
 | Performance/Goals | 🔵 Frontend/Supabase only | Supabase `goals`, `performance_reviews`; **PROTECTED** |
 | Attendance (legacy) | 🔵 Frontend/Supabase only | Legacy Supabase `attendance_records` pages; **PROTECTED** |
-| LMS Admin | ❌ Broken route | App.tsx routes `/lms/admin` → `NativePlaceholderPage`; `NativeLMSAdmin` imported but unused in router |
+| LMS Admin | ⚠️ Wrapper route | App.tsx routes `/lms/admin` → `NativePlaceholderPage`; transitional native LMS route already resolves through wrapper. Direct routing is optional refactoring only after LMS integration design and runtime validation. Not a Phase 0 defect — deferred to Phase 6 or later as optional refactor. |
 | LMS My Learning | ⚠️ Partial | Renders; reads Supabase `lms_*` directly; **PROTECTED as legacy native LMS** |
 | LMS Coordinator | ⚠️ Partial | Supabase direct; **PROTECTED as legacy native LMS** |
-| LMS Management Dashboard | ❌ Missing | Routes to placeholder; `useLMSSession` bridge non-functional (VITE_LMS_API_URL missing) |
+| LMS Management Dashboard | ⚠️ Wrapper route | Routes to placeholder; LMS integration mode is pending discovery and design — integration mechanism not yet approved |
 | Quality Dashboard | ❌ Placeholder | — |
 | Operations Dashboard | ❌ Placeholder | — |
 | ATS Onboarding Bridge | ❌ No route | `NativeATSOnboardingBridge.tsx` exists, not in router |
@@ -184,9 +184,9 @@ Three project IDs found in repo. Documented here — no changes made yet.
 | ATS Candidate Master | ❌ No route | `NativeATSCandidateMaster.tsx` exists, not in router |
 | ATS Recruiter Workspace | ❌ No route | `NativeATSRecruiterWorkspace.tsx` exists, not in router |
 | ATS Dashboard V2 / Replica | ❌ No route | Both page components exist, neither in router |
-| Unified Perf Command Center | ✅ Routed | `/performance/command-center` |
-| Access Control | ✅ Routed | `/settings/access-control` |
-| Bulk Upload Hub | ✅ Routed | `/bulk-upload` |
+| Unified Perf Command Center | foundation present / runtime and security validation pending | `/performance/command-center` |
+| Access Control | foundation present / runtime and security validation pending | `/settings/access-control` |
+| Bulk Upload Hub | foundation present / runtime and security validation pending | `/bulk-upload` |
 
 ---
 
@@ -212,7 +212,7 @@ Three project IDs found in repo. Documented here — no changes made yet.
 | Goals / Performance | Supabase PostgreSQL | `goals`, `performance_reviews`, `review_kpi_ratings` — **protected** |
 | Notifications | Supabase PostgreSQL | `notifications`, `push_subscriptions` |
 | LMS content (native transitional) | Supabase PostgreSQL | `lms_*` tables — **protected, Decision 2** |
-| LMS content (target system) | Deployed LMS backend | Bridge only via `VITE_LMS_API_URL` |
+| LMS content (target system) | Deployed LMS backend | Bridge only — integration mechanism pending discovery and design |
 
 ---
 
@@ -220,25 +220,22 @@ Three project IDs found in repo. Documented here — no changes made yet.
 
 | ID | Problem | File(s) | Severity |
 |---|---|---|---|
-| P0-1 | `/lms/admin` routes to `NativePlaceholderPage`; `NativeLMSAdmin` imported but not used in router | `src/App.tsx:108` | Broken page |
-| P0-2 | `/wfm/live-tracker` routes to `NativePlaceholderPage`; `NativeWFMLiveTracker` imported but not routed | `src/App.tsx:115` | Broken page |
-| P0-3 | `VITE_LMS_API_URL` missing from `.env.example` — LMS bridge silently fails with "Not authenticated" | `.env.example` | Silent failure |
 | P0-4 | **RBAC authority split**: frontend RBAC reads Supabase `role_page_access`; backend `requireRole` reads MySQL `user_roles`. Users in Supabase but not MySQL get 403 on all API calls. | `src/hooks/useUserRole.ts`, `backend/src/middleware/requireRole.ts` | Access failure |
-| P0-5 | `salary_payslip` table absent from all SQL files; payroll disbursement/payslip has no write target | All `backend/sql/*.sql` | Missing schema |
+| P0-5 | `salary_payslip` table absent from all SQL files; payroll disbursement/payslip has no write target — gap noted; implementation deferred to Phase 5 | All `backend/sql/*.sql` | Missing schema |
 
 ## P1 — Significant Gaps
 
 | ID | Problem | File(s) |
 |---|---|---|
-| P1-1 | TDS hardcoded `0` in payroll calculation | `backend/src/modules/payroll/payrollCalculate.service.ts` |
-| P1-2 | Salary advance not deducted in payroll run | `payrollCalculate.service.ts` + `salary_advance_log` |
-| P1-3 | Working days hardcoded `26`; holiday calendar not integrated | `payrollCalculate.service.ts` |
+| P1-1 | TDS hardcoded `0` in payroll calculation — gap noted; deferred to Phase 5 | `backend/src/modules/payroll/payrollCalculate.service.ts` |
+| P1-2 | Salary advance not deducted in payroll run — gap noted; deferred to Phase 5 | `payrollCalculate.service.ts` + `salary_advance_log` |
+| P1-3 | Working days hardcoded `26`; holiday calendar not integrated — gap noted; deferred to Phase 5 | `payrollCalculate.service.ts` |
 | P1-4 | `portal_access_log` table never written — audit trail broken | All `backend/src/modules/portal/portal.*.service.ts` |
 | P1-5 | `backend/.env.example` `SUPABASE_URL` points to stale project `unanckifivwkziwvnjtc` | `backend/.env.example:6` |
 | P1-6 | `employee_bank_detail` table missing encryption at rest | `backend/sql/002_employees.sql` |
-| P1-7 | `migration_run` + `migration_row_log` tables absent — migration console cannot log runs | All SQL files |
+| P1-7 | `migration_run` + `migration_row_log` tables — these tables already exist, created by `backend/sql/010_kpi_migration.sql` which is included in the schema runner. Task is VERIFICATION ONLY, not new schema build. Status: ⬜ PENDING (verify via read-only query after approval). Approval Required: NO. | All SQL files |
 | P1-8 | SQL file numbering conflicts: two `010_*` files, two `012_*` files; `000_run_all.sql` will fail partially | `backend/sql/` |
-| P1-9 | LWP deduction not applied in payroll calc; `lwp_days` populated but deduction not computed | `payrollCalculate.service.ts` |
+| P1-9 | LWP deduction not applied in payroll calc; `lwp_days` populated but deduction not computed — gap noted; deferred to Phase 5 | `payrollCalculate.service.ts` |
 | P1-10 | Demo portal bypass (`demo@mascallnet.com`) not env-gated — active in production | `backend/src/modules/portal/portal.auth.service.ts` |
 
 ## P2 — Quality / Incomplete
@@ -246,11 +243,13 @@ Three project IDs found in repo. Documented here — no changes made yet.
 | ID | Problem | File(s) |
 |---|---|---|
 | P2-1 | 6 ATS pages (`NativeATSOnboardingBridge`, `NativeATSWaitingQueue`, `NativeATSCandidateMaster`, `NativeATSRecruiterWorkspace`, `NativeATSDashboardV2`, `NativeATSDashboardReplica`) exist but have no routes | `src/App.tsx` |
-| P2-2 | PT (Professional Tax) fixed ₹200; should read state slab from `statutory_config` | `payrollCalculate.service.ts` |
+| P2-2 | PT (Professional Tax) fixed ₹200; should read state slab from `statutory_config` — deferred to Phase 5 | `payrollCalculate.service.ts` |
 | P2-3 | `portal_otp` records never purged — table grows indefinitely | `portal.auth.service.ts` |
 | P2-4 | `process_master` exists in both MySQL and Supabase — dual-write risk | `001_core_org.sql` + Supabase migrations |
 | P2-5 | `NativeLMSAdmin.tsx` writes directly to Supabase `lms_*` tables — conflicts with deployed LMS as future system of record | `src/pages/NativeLMSAdmin.tsx` |
-| P2-6 | Payslip PDF client-side only (jsPDF); no server-side generation or secure storage | `src/lib/payslipPdfGenerator.ts` |
+| P2-6 | Payslip PDF client-side only (jsPDF); no server-side generation or secure storage — deferred to Phase 5 | `src/lib/payslipPdfGenerator.ts` |
+| P2-7 | `/lms/admin` transitional wrapper route — direct routing is optional refactoring only after LMS integration design and runtime validation | `src/App.tsx` |
+| P2-8 | `/wfm/live-tracker` routes through `NativePlaceholderPage` wrapper — runtime and data behaviour requires validation before direct route wiring | `src/App.tsx` |
 
 ---
 
@@ -258,27 +257,63 @@ Three project IDs found in repo. Documented here — no changes made yet.
 
 All steps operate on local Docker MySQL + local dev server only. No production changes.
 
+**Phase 0: Stabilisation, database boundary and security design**
+
 | Step | Action | Unblocks |
 |---|---|---|
 | 1 | Rename SQL files: `010_kpi_migration.sql` → `010a_kpi_migration.sql`; `012_roster_shift_times.sql` → `013_roster_shift_times.sql` | D2/D3 file conflicts |
 | 2 | Update `000_run_all.sql` to reflect new numbering | Clean migration runs |
-| 3 | New file `013_salary_payslip.sql` — `salary_payslip` table | P0-5 |
-| 4 | New file `014_migration_tracking.sql` — `migration_run`, `migration_row_log` tables | P1-7 |
-| 5 | Fix `App.tsx` route: `/lms/admin` → `NativeLMSAdmin`; `/wfm/live-tracker` → `NativeWFMLiveTracker` | P0-1, P0-2 |
-| 6 | Add `VITE_LMS_API_URL` placeholder to `.env.example` with comment | P0-3 |
-| 7 | Fix `backend/.env.example` `SUPABASE_URL` → `https://bebminxoqdjzzfhnrsge.supabase.co` | P1-5 |
-| 8 | New backend module `access/` — `access.routes.ts` + `access.service.ts`; mount in `app.ts` | P0-4 |
-| 9 | Write role reconciliation script + mismatch report endpoint | P0-4 |
-| 10 | Add negative API access tests (user in Supabase only → 403) | P0-4 |
-| 11 | Write `portal_access_log` INSERT in portal controller | P1-4 |
-| 12 | Env-gate `demo@mascallnet.com` bypass via `DEMO_MODE` env var | P1-10 |
-| 13 | Fix LWP deduction in payroll calc | P1-9 |
-| 14 | Basic TDS stub from `statutory_config` annualized taxable income | P1-1 |
-| 15 | Wire `salary_advance_log` recovery into payroll calc | P1-2 |
+| 3 | Fix `backend/.env.example` `SUPABASE_URL` → `https://bebminxoqdjzzfhnrsge.supabase.co` | P1-5 |
+| 4 | Verify `migration_run` + `migration_row_log` tables exist in `backend/sql/010_kpi_migration.sql` via read-only query (no new SQL file required) | P1-7 |
+| 5 | Design MySQL-authoritative backend RBAC transition with Supabase UI visibility mirror after verifying actual role/page/scope tables, reconciliation rules, mismatch reporting and negative API tests. No code implementation approved yet. Status: ⬜ PENDING design. Approval Required: YES before any implementation. | P0-4 |
+| 6 | Write `portal_access_log` INSERT in portal controller | P1-4 |
+| 7 | Env-gate `demo@mascallnet.com` bypass via `DEMO_MODE` env var | P1-10 |
 
-**Steps 1–7:** Documentation + config only. Zero runtime risk.  
-**Steps 8–10:** New backend module. Does not touch existing routes.  
-**Steps 11–15:** Isolated changes to existing service files.
+**Steps 1–4:** Documentation + config only. Zero runtime risk.  
+**Step 5:** Design only. No code. Approval required before any implementation.  
+**Steps 6–7:** Isolated changes to existing service files.
+
+---
+
+## Deferred Tasks by Phase
+
+**Phase 1: Organisation masters, roles/scopes, workflow engine and audit framework**
+- (Assign tasks here as Phase 1 planning proceeds)
+
+**Phase 2: Employee lifecycle, documents, assets and helpdesk**
+- (Assign tasks here as Phase 2 planning proceeds)
+
+**Phase 3: ATS and joining ecosystem**
+- Route ATS pages (`NativeATSOnboardingBridge`, `NativeATSWaitingQueue`, `NativeATSCandidateMaster`, `NativeATSRecruiterWorkspace`, `NativeATSDashboardV2`, `NativeATSDashboardReplica`) once ATS design is confirmed
+
+**Phase 4: Attendance, leave, WFM, roster, shrinkage and attrition**
+- `/wfm/live-tracker` direct route wiring — optional refactoring after runtime and data behaviour validation
+
+**Phase 5: Payroll, statutory, payslip, gratuity and F&F**
+- `salary_payslip` table creation (P0-5 gap — schema build deferred here)
+- LWP deduction implementation (P1-9)
+- TDS calculation from `statutory_config` annualized taxable income (P1-1 — gap note only, not a basic stub)
+- Salary advance recovery into payroll calc (P1-2)
+- Working days integration with holiday calendar (P1-3)
+- PT state slab from `statutory_config` (P2-2)
+- Payslip PDF server-side generation and secure storage (P2-6)
+
+**Phase 6: LMS integration only**
+- Determine approved LMS integration mechanism (secured backend API, scheduled sync, connector, deep-link, or SSO) and required configuration. Do not add frontend LMS API variables during Phase 0. Status: 🔵 DEFERRED to Phase 6. No code approved.
+- `/lms/admin` direct route wiring — optional refactoring only after LMS integration design and runtime validation (P2-7)
+
+**Phase 7: Operations, Quality, Call Master and performance**
+- Quality Dashboard implementation
+- Operations Dashboard implementation
+
+**Phase 8: Client Portal hardening**
+- `portal_otp` purge mechanism (P2-3)
+
+**Phase 9: ERP extensions**
+- (Assign tasks here as Phase 9 planning proceeds)
+
+**Phase 10: Migration, security, UAT and deployment readiness**
+- (Assign tasks here as Phase 10 planning proceeds)
 
 ---
 
