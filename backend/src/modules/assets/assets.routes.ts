@@ -1,0 +1,53 @@
+import { Router } from "express";
+import type { Response } from "express";
+import { requireAuth } from "../../middleware/authMiddleware.js";
+import { requireRole } from "../../middleware/requireRole.js";
+import type { AuthenticatedRequest } from "../../middleware/authMiddleware.js";
+import { assetsService } from "./assets.service.js";
+
+const router = Router();
+const h = (fn: Function) => (req: any, res: any, next: any) => fn(req, res).catch(next);
+
+router.use(requireAuth);
+
+router.get("/", h(async (req: AuthenticatedRequest, res: Response) => {
+  res.json({ data: await assetsService.list(req.query as any) });
+}));
+
+router.post("/", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
+  res.status(201).json({ data: await assetsService.create(req.body) });
+}));
+
+router.get("/employee/:employeeId", h(async (req: AuthenticatedRequest, res: Response) => {
+  res.json({ data: await assetsService.listByEmployee(req.params.employeeId) });
+}));
+
+router.get("/:id", h(async (req: AuthenticatedRequest, res: Response) => {
+  const asset = await assetsService.getById(req.params.id);
+  if (!asset) return res.status(404).json({ error: "Not found" });
+  res.json({ data: asset });
+}));
+
+router.put("/:id", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
+  res.json({ data: await assetsService.update(req.params.id, req.body) });
+}));
+
+router.post("/:id/assign", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
+  const { employee_id, notes } = req.body;
+  if (!employee_id) return res.status(400).json({ error: "employee_id required" });
+  const assignment = await assetsService.assign(req.params.id, employee_id, req.authUser!.id, notes, req);
+  res.status(201).json({ data: assignment });
+}));
+
+router.post("/:id/return", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
+  const { condition } = req.body;
+  await assetsService.returnAsset(req.params.id, condition ?? "good", req.authUser!.id, req);
+  res.json({ ok: true });
+}));
+
+router.post("/:id/service", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
+  const id = await assetsService.addServiceLog(req.params.id, req.body);
+  res.status(201).json({ data: { id } });
+}));
+
+export { router as assetsRouter };

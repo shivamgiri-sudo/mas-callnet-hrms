@@ -21,6 +21,10 @@ import { migrationRouter } from "./modules/migration/migration.routes.js";
 import { accessRouter } from "./modules/access/access.routes.js";
 import { orgRouter } from "./modules/org/org.routes.js";
 import { workflowRouter } from "./modules/workflow/workflow.routes.js";
+import { lifecycleRouter } from "./modules/lifecycle/lifecycle.routes.js";
+import { assetsRouter } from "./modules/assets/assets.routes.js";
+import { helpdeskRouter } from "./modules/helpdesk/helpdesk.routes.js";
+import { lettersRouter } from "./modules/letters/letters.routes.js";
 
 export const app = express();
 
@@ -71,6 +75,10 @@ app.use("/api/migration", migrationRouter);
 app.use("/api/access", accessRouter);
 app.use("/api/org", orgRouter);
 app.use("/api/workflow", workflowRouter);
+app.use("/api/lifecycle", lifecycleRouter);
+app.use("/api/assets-mgmt", assetsRouter);
+app.use("/api/helpdesk", helpdeskRouter);
+app.use("/api/letters", lettersRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
