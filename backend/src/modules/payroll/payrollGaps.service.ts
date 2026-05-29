@@ -183,13 +183,30 @@ export const payrollGapsService = {
       };
     }
 
+    // All six rate keys are required — no hardcoded fallback rates
+    const r1 = slabMap["tds_slab_1_rate"];
+    const r2 = slabMap["tds_slab_2_rate"];
+    const r3 = slabMap["tds_slab_3_rate"];
+    const r4 = slabMap["tds_slab_4_rate"];
+    const r5 = slabMap["tds_slab_5_rate"];
+    const r6 = slabMap["tds_slab_6_rate"];
+
+    if (r1 === undefined || r2 === undefined || r3 === undefined ||
+        r4 === undefined || r5 === undefined || r6 === undefined) {
+      return {
+        tds: 0,
+        status: "pending_configuration",
+        note: "TDS projection requires approved tax slab configuration. No hardcoded defaults applied.",
+      };
+    }
+
     const slabs = [
-      { from: 0,  to: s1,       rate: slabMap["tds_slab_1_rate"] ?? 0    },
-      { from: s1, to: s2,       rate: slabMap["tds_slab_2_rate"] ?? 0.05 },
-      { from: s2, to: s3,       rate: slabMap["tds_slab_3_rate"] ?? 0.10 },
-      { from: s3, to: s4,       rate: slabMap["tds_slab_4_rate"] ?? 0.15 },
-      { from: s4, to: s5,       rate: slabMap["tds_slab_5_rate"] ?? 0.20 },
-      { from: s5, to: Infinity, rate: slabMap["tds_slab_6_rate"] ?? 0.30 },
+      { from: 0,  to: s1,       rate: r1 },
+      { from: s1, to: s2,       rate: r2 },
+      { from: s2, to: s3,       rate: r3 },
+      { from: s3, to: s4,       rate: r4 },
+      { from: s4, to: s5,       rate: r5 },
+      { from: s5, to: Infinity, rate: r6 },
     ];
 
     let tax = 0;

@@ -6,6 +6,7 @@ import { payrollController as c } from "./payroll.controller.js";
 import { calculatePayrollRun } from "./payrollCalculate.service.js";
 import { payslipService } from "./payslip.service.js";
 import { taxDeclarationService } from "./taxDeclaration.service.js";
+import { logSensitiveAction } from "../../shared/auditLog.js";
 import type { AuthenticatedRequest } from "../../middleware/authMiddleware.js";
 import type { Response } from "express";
 
@@ -39,7 +40,17 @@ router.patch("/runs/:id/status", requireRole("admin", "finance", "payroll"), h(c
 router.get("/runs/:id/lines", h(c.listLines));
 router.post("/runs/:id/calculate", requireRole("admin", "finance", "payroll"), async (req: any, res: any, next: any) => {
   try {
-    const result = await calculatePayrollRun(req.params.id, req.authUser?.id ?? "system");
+    const actorId = req.authUser?.id ?? "system";
+    const result = await calculatePayrollRun(req.params.id, actorId);
+    void logSensitiveAction({
+      actor_user_id: actorId,
+      action_type: "PAYROLL_RUN_CALCULATED",
+      module_key: "payroll",
+      entity_type: "salary_prep_run",
+      entity_id: req.params.id,
+      change_summary: { run_id: req.params.id },
+      req,
+    });
     return res.json({ success: true, data: result, message: "Payroll calculated" });
   } catch (err) { next(err); }
 });

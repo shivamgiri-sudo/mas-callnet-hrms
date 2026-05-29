@@ -95,12 +95,28 @@ Treat these as protected unless the user explicitly approves replacement:
 10. No mock metrics in production flows. Demo tenants/data must be isolated and labelled.
 11. Do not push, merge, deploy or update production without user approval.
 
-## Database Boundary Rule (approved 2026-05-29)
+## Database Boundary Rule (Charter v1.0, 2026-05-29)
 
-- `mas_hrms` is the dedicated writable PeopleOS / HRMS application database. All operational HRMS data lives here.
-- Existing operational production database(s) are upstream read-only source systems. Future integration must use controlled read-only connectors or sync flows into `mas_hrms` only. No upstream source schema or data modification without explicit written approval.
-- Supabase Auth remains the authentication and session identity system permanently.
-- MySQL `user_roles` is the authority for backend API access and sensitive-data enforcement. Supabase `role_page_access` is a transitional frontend UI visibility mirror only.
+### MySQL First — Permanent Direction
+- `mas_hrms` is the dedicated writable PeopleOS application database. All new business workflow data lives here.
+- Do NOT create new operational or business tables in Supabase.
+- Build every new module (ATS, employee lifecycle, payroll, WFM, portal, LMS integration, ERP) in MySQL.
+
+### Supabase Transitional Boundary
+- Supabase Auth: may remain as identity/session provider; MySQL RBAC is authoritative for API access.
+- Supabase Storage: may retain binary-file storage temporarily; MySQL owns metadata, access audit and workflows.
+- Existing Supabase-native screens/tables: preserve until MySQL equivalent is tested and migrated. Do not expand as new architecture.
+- Existing Supabase LMS-related flows: treat as protected transitional legacy only; do not enhance into a second LMS.
+
+### Upstream Source Systems
+- Existing production SQL databases, Call Master, attendance sources, client/source systems are upstream read-only sources.
+- Future connectors read approved datapoints into `mas_hrms` only; no writeback to source systems.
+- No upstream schema or data modifications without separate explicit approval.
+
+### LMS Boundary
+- The deployed internal LMS is the system of record for curriculum, content, assessments, certification operations.
+- PeopleOS builds integration scaffolding only: learner/batch/progress/certification/risk snapshots, sync error controls and approved Client Portal readiness feed.
+- Do not rebuild LMS operations. Do not connect to or alter the live LMS without explicit approval.
 
 ## Source-of-Truth Direction
 
@@ -127,6 +143,26 @@ Verify these in code before implementing changes:
 6. Asset/document journeys have existing Supabase foundations; build controlled backend convergence rather than removing active flows.
 7. Payroll remains a foundation until TDS, gratuity, F&F, salary-advance recovery, payout workflow and statutory outputs are complete.
 8. LMS is not a missing backend to rebuild: it is an external deployed system to integrate.
+
+## Roster Governance (First-Class Pillar)
+- Weekly roster lifecycle is critical: demand → allocation → draft → publish → acknowledge → active → lock → payroll-input-ready.
+- Process Manager has publication authority for their mapped process.
+- Post-publication changes require mandatory reason and audit.
+- Employee acknowledgement is required before production deployment.
+- Client Portal receives only approved aggregate roster/shrinkage outputs; no individual employee roster or attendance reasons.
+
+## Payroll and Statutory Safety Rules
+- No payroll computation may become final payable logic unless based on approved effective-dated configuration, verified calculations, role security, reconciliation and owner approval.
+- TDS projection: blocked/pending unless approved effective-dated slab configuration exists in `statutory_config`. No hardcoded fallback slabs.
+- LWP deduction: configurable basis required (`lwp_deduction_basis` in config); provisional/blocked without it.
+- Gratuity: configurable eligible wage base, minimum years and statutory cap required; draft only until configured.
+- F&F approval blocked when `is_ff_provisional=1` — requires authorised setProvisionalFalse() override with audit reason.
+- Never expose payroll/salary/tax/PF/UAN/bank data through Client Portal, management surfaces or any non-payroll endpoint.
+
+## Continuous Build Permission
+- Build clean feature branches, additive MySQL migrations (unexecuted), APIs, UI and tests without stopping.
+- Stop ONLY for charter hard gates: live SQL execution, deployment, credential changes, live upstream DB/LMS access, payroll activation, destructive changes, unresolved PII/security exposure.
+- Squash-merge safe PRs after package quality gates pass.
 
 ## Required Work Pattern in Claude Code
 
@@ -165,3 +201,7 @@ For every phase:
 - Remove modules, pages, migrations, tables or existing business logic.
 - Publish secrets, environment values or client/employee/candidate data.
 - Push or merge to GitHub.
+
+## Package Reference
+This project implements the PeopleOS Master Execution Charter (docs/peopleos-build/PEOPLEOS_MASTER_EXECUTION_CHARTER.md).
+Packages A–L defined in charter §12. Current position tracked in CLAUDE_IMPLEMENTATION_TRACKER.md.
