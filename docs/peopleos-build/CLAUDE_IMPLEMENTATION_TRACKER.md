@@ -189,17 +189,27 @@
 
 ## Phase 7 — Operations, Quality, Call Master and Performance
 
+> Package 5 (management performance surfaces) implemented 2026-05-29 on branch `phase-5/portal-performance`.
+
 | Phase | Module | Task | Current State | Planned Change | Files Affected | DB Impact | API Impact | Frontend Impact | Roles Impacted | Test Required | Risk | Status | Approval Required |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 7 | Performance | MySQL schema for management KPI summary, coaching sessions, performance alerts | Not present | New `019_performance_surfaces.sql` with `management_kpi_summary`, `coaching_session`, `performance_alert` tables | `backend/sql/019_performance_surfaces.sql`, `backend/sql/000_run_all.sql` | Additive — 3 new tables; `CREATE TABLE IF NOT EXISTS`; no existing tables altered | None (schema only; see management module below) | None | Admin, HR, Manager | Schema created; API tests pass | Low | ✅ DONE | Package 5 |
+| 7 | Performance | Backend `/api/management` module — team KPI, coaching, alerts, dashboard | No backend management module | New `management.service.ts` + `management.routes.ts`; mounted at `/api/management` | `backend/src/modules/management/management.service.ts` (new), `backend/src/modules/management/management.routes.ts` (new), `backend/src/app.ts` | Reads `kpi_score`, `kpi_assignment`, `employees`; writes `coaching_session`, `performance_alert` | `GET /api/management/team-kpi`, `GET/POST /api/management/coaching`, `GET /api/management/alerts`, `POST /api/management/alerts/:id/acknowledge`, `GET /api/management/dashboard` | None (no frontend change) | Admin, HR, Manager (all); Employee self-service own coaching | 17 tests passing (management.performance.test.ts); 403 on employee for privileged endpoints; audited on create/acknowledge | Low | ✅ DONE | Package 5 |
+| 7 | Performance | Test suite for management performance surfaces (Package 5) | No tests for management module | `management.performance.test.ts` with exact mock pattern: db.execute + supabaseAuthClient mocks only | `backend/tests/management.performance.test.ts` | None | None | None | Admin, HR, Manager, Employee | 14 tests passing: team-kpi 200/403, coaching 200 admin/employee, coaching POST 201/403/400, alerts 200/403, acknowledge 200/403, dashboard 200/403, portal blocked 401; audit INSERT verified for coaching create and alert acknowledge | None | ✅ DONE | Package 5 |
 | 7 | Performance | MySQL schema for goals + reviews | Supabase only | New SQL file | New SQL | Additive | None yet | None | Admin, HR, Manager | Table creation | Low | 🔵 DEFERRED | YES before implementation |
-| 7 | Performance | Backend `/api/performance` module | No backend route | New module | New module | MySQL `goals`, `performance_reviews` | New endpoints | Feature-flagged hooks | All | CRUD; review workflow | Medium | 🔵 DEFERRED | YES before implementation |
+| 7 | Performance | Backend `/api/performance` module (goals/reviews) | No backend route | New module | New module | MySQL `goals`, `performance_reviews` | New endpoints | Feature-flagged hooks | All | CRUD; review workflow | Medium | 🔵 DEFERRED | YES before implementation |
 
 ---
 
 ## Phase 8 — Client Portal Hardening
 
+> Package 5 portal hardening implemented 2026-05-29 on branch `phase-5/portal-performance`.
+
 | Phase | Module | Task | Current State | Planned Change | Files Affected | DB Impact | API Impact | Frontend Impact | Roles Impacted | Test Required | Risk | Status | Approval Required |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | Portal | Defence-in-depth processId scope check in portal KPI/attrition services | Controller calls `assertProcessAccess` but service had no second check | Added `allowedProcessIds` parameter to `getScorecards` and `getAttrition`; throws 403 if processId not in allowed list | `backend/src/modules/portal/portal.kpi.service.ts`, `backend/src/modules/portal/portal.attrition.service.ts` | None | No API change — same endpoints, additional service-level guard | None | Client users | Existing portal tests pass (403 enforced at controller AND service) | Low | ✅ DONE | Package 5 |
+| 8 | Portal | Verify no payroll/salary imports in portal module | Concern: portal controller might import payroll data | Confirmed by grep: zero payroll/salary/bank_account imports in portal controller/services | `backend/src/modules/portal/portal.controller.ts` (read-only verification) | None | None | None | — | Grep verified CLEAN — no payroll imports | None | ✅ DONE (verification) | Package 5 |
+| 8 | Portal | Portal JWT blocked from /api/management (defence-in-depth) | No explicit test verifying portal clients cannot access management endpoints | Added portal-blocked-without-JWT test in `management.performance.test.ts`: portal token → getUser returns null → 401 for team-kpi, dashboard, alerts | `backend/tests/management.performance.test.ts` | None | No change — existing requireAuth blocks unauthenticated requests | None | Client users | 3 tests confirm 401 for portal JWT on all management read endpoints | None | ✅ DONE | Package 5 |
 | 8 | Portal | `portal_otp` cleanup job | OTP records accumulate; never deleted | Add cron or scheduled DELETE for `used=1` or `expires_at < NOW() - 7 days` | `portal.auth.service.ts` or new cron | DELETE on `portal_otp` | None | None | None | Verify old records cleared; valid records retained | Low | 🔵 DEFERRED | YES before implementation |
 | 8 | Portal | Portal client user management UI | No admin UI to create `client_user` records | New internal admin page for portal user CRUD | New page | `client_user` CRUD | Existing internal portal endpoints | New settings page | Admin | Create user; verify portal login works | Low | 🔵 DEFERRED | YES before implementation |
 

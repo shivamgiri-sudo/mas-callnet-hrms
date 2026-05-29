@@ -15,7 +15,13 @@ export const portalKpiService = {
     return "red";
   },
 
-  async getScorecards(processId: string, period: string): Promise<KpiScorecard[]> {
+  async getScorecards(processId: string, period: string, allowedProcessIds?: string[]): Promise<KpiScorecard[]> {
+    // Defence-in-depth: verify the caller is allowed to access this processId.
+    // The controller already calls assertProcessAccess but this layer adds a second check.
+    if (!processId) throw Object.assign(new Error("processId is required"), { statusCode: 400 });
+    if (allowedProcessIds !== undefined && !allowedProcessIds.includes(processId)) {
+      throw Object.assign(new Error("Process not in your access list"), { statusCode: 403 });
+    }
     if (!/^\d{4}-\d{2}$/.test(period)) throw new Error(`Invalid period format: ${period}`);
 
     // Fetch process name first to build a safe parameterized LIKE

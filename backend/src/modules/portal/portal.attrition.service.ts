@@ -3,7 +3,13 @@ import { db } from "../../db/mysql.js";
 import type { AttritionData } from "./portal.types.js";
 
 export const portalAttritionService = {
-  async getAttrition(processId: string, period: string): Promise<AttritionData> {
+  async getAttrition(processId: string, period: string, allowedProcessIds?: string[]): Promise<AttritionData> {
+    // Defence-in-depth: verify the caller is allowed to access this processId.
+    // The controller already calls assertProcessAccess but this layer adds a second check.
+    if (!processId) throw Object.assign(new Error("processId is required"), { statusCode: 400 });
+    if (allowedProcessIds !== undefined && !allowedProcessIds.includes(processId)) {
+      throw Object.assign(new Error("Process not in your access list"), { statusCode: 403 });
+    }
     if (!/^\d{4}-\d{2}$/.test(period)) throw new Error(`Invalid period format: ${period}`);
 
     const [hcRows] = await db.execute<RowDataPacket[]>(

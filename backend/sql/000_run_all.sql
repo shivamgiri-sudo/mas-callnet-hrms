@@ -20,6 +20,7 @@ SOURCE sql/015_platform_foundation.sql;
 SOURCE sql/016_employee_lifecycle.sql;
 SOURCE sql/017_ats_wfm_completion.sql;
 SOURCE sql/018_payroll_exit_completion.sql;
+SOURCE sql/019_performance_surfaces.sql;
 
 SELECT 'mas_hrms schema complete' AS status;
 SHOW TABLES;
