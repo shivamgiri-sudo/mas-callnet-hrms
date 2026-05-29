@@ -11,8 +11,10 @@ SOURCE sql/006_leave.sql;
 SOURCE sql/007_payroll.sql;
 SOURCE sql/008_integration_hub.sql;
 SOURCE sql/009_dialer_ispark.sql;
+SOURCE sql/010_kpi.sql;
 SOURCE sql/010_kpi_migration.sql;
 SOURCE sql/011_exit_management.sql;
+SOURCE sql/012_client_portal.sql;
 SOURCE sql/012_roster_shift_times.sql;
 
 SELECT 'mas_hrms schema complete' AS status;
