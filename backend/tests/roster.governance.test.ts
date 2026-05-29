@@ -17,7 +17,10 @@ vi.mock("../src/shared/accessGuard.js", () => ({
   getEmployeeForUser: vi.fn(),
   hasRole: vi.fn(),
   hasProcessScope: vi.fn(),
-  selfOrAdminHr: vi.fn(),
+  // Other application routers are mounted while this suite imports app.ts.
+  // Return a valid pass-through middleware so lifecycle route registration
+  // remains intact; roster endpoints under test do not rely on this guard.
+  selfOrAdminHr: vi.fn(() => (_req: unknown, _res: unknown, next: () => void) => next()),
 }));
 vi.mock("../src/modules/roster/roster.governance.service.js", () => ({
   rosterGovernanceService: {
