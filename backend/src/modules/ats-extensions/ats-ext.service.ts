@@ -162,9 +162,14 @@ export const duplicateService = {
   },
 
   async logDuplicate(candidateId: string, matchedWithId: string, reason: string, score?: number) {
+    const [existing] = await db.execute<RowDataPacket[]>(
+      "SELECT id FROM ats_duplicate_log WHERE candidate_id = ? AND matched_with_id = ? AND resolved = 0 LIMIT 1",
+      [candidateId, matchedWithId]
+    );
+    if ((existing as RowDataPacket[]).length > 0) return; // already logged, skip
     const id = randomUUID();
     await db.execute(
-      "INSERT IGNORE INTO ats_duplicate_log (id, candidate_id, matched_with_id, match_reason, match_score) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO ats_duplicate_log (id, candidate_id, matched_with_id, match_reason, match_score) VALUES (?, ?, ?, ?, ?)",
       [id, candidateId, matchedWithId, reason, score ?? null]
     );
   },
@@ -172,7 +177,8 @@ export const duplicateService = {
   async listUnresolved() {
     const [rows] = await db.execute<RowDataPacket[]>(
       `SELECT dl.*, c1.full_name AS candidate_name, c2.full_name AS matched_name,
-              c1.mobile AS candidate_mobile, c2.mobile AS matched_mobile
+              CONCAT(LEFT(c1.mobile, 3), '****', RIGHT(c1.mobile, 2)) AS candidate_mobile_masked,
+              CONCAT(LEFT(c2.mobile, 3), '****', RIGHT(c2.mobile, 2)) AS matched_mobile_masked
        FROM ats_duplicate_log dl
        JOIN ats_candidate c1 ON c1.id = dl.candidate_id
        JOIN ats_candidate c2 ON c2.id = dl.matched_with_id
@@ -181,8 +187,9 @@ export const duplicateService = {
     return rows as RowDataPacket[];
   },
 
-  async resolve(id: string, note: string) {
+  async resolve(id: string, note: string, resolvedBy: string, req?: Request) {
     await db.execute("UPDATE ats_duplicate_log SET resolved = 1, resolution_note = ? WHERE id = ?", [note, id]);
+    await logSensitiveAction({ actor_user_id: resolvedBy, action_type: "DUPLICATE_RESOLVED", module_key: "ATS", entity_type: "ats_duplicate_log", entity_id: id, change_summary: { note }, req });
   },
 };
 

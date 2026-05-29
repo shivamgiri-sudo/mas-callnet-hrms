@@ -11,12 +11,13 @@ const h = (fn: Function) => (req: any, res: any, next: any) => fn(req, res).catc
 router.use(requireAuth);
 
 // ── Manpower Requisitions ─────────────────────────────────────────────────────
+// scope-limited: manager/recruiter access deferred until user_assignment_scope enforcement is available
 
-router.get("/requisitions", requireRole("admin", "hr", "manager"), h(async (req: AuthenticatedRequest, res: Response) => {
+router.get("/requisitions", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: await requisitionService.list(req.query as any) });
 }));
 
-router.post("/requisitions", requireRole("admin", "hr", "manager"), h(async (req: AuthenticatedRequest, res: Response) => {
+router.post("/requisitions", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
   res.status(201).json({ data: await requisitionService.create(req.body, req.authUser!.id, req) });
 }));
 
@@ -62,23 +63,25 @@ router.patch("/offers/:id/status", requireRole("admin", "hr"), h(async (req: Aut
 }));
 
 // ── Duplicate Detection ───────────────────────────────────────────────────────
+// scope-limited: manager/recruiter access deferred until user_assignment_scope enforcement is available
 
-router.get("/duplicates", requireRole("admin", "hr", "recruiter"), h(async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/duplicates", requireRole("admin", "hr"), h(async (_req: AuthenticatedRequest, res: Response) => {
   res.json({ data: await duplicateService.listUnresolved() });
 }));
 
 router.post("/duplicates/:id/resolve", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
-  await duplicateService.resolve(req.params.id, req.body.note ?? "");
+  await duplicateService.resolve(req.params.id, req.body.note ?? "", req.authUser!.id);
   res.json({ ok: true });
 }));
 
 // ── Sourcing Analytics ────────────────────────────────────────────────────────
+// scope-limited: manager/recruiter access deferred until user_assignment_scope enforcement is available
 
-router.get("/analytics/funnel", requireRole("admin", "hr", "recruiter", "manager"), h(async (req: AuthenticatedRequest, res: Response) => {
+router.get("/analytics/funnel", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: await sourcingAnalyticsService.getFunnel(req.query as any) });
 }));
 
-router.get("/analytics/stages", requireRole("admin", "hr", "recruiter", "manager"), h(async (req: AuthenticatedRequest, res: Response) => {
+router.get("/analytics/stages", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: await sourcingAnalyticsService.getStageWise(req.query as any) });
 }));
 

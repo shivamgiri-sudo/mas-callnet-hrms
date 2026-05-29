@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import { db } from "../../db/mysql.js";
+import { logSensitiveAction } from "../../shared/auditLog.js";
+import type { Request } from "express";
 
 // ── Roster Swap ───────────────────────────────────────────────────────────────
 
@@ -36,11 +38,12 @@ export const rosterSwapService = {
     return (rows as RowDataPacket[])[0];
   },
 
-  async review(id: string, status: "approved" | "rejected", reviewedBy: string) {
+  async review(id: string, status: "approved" | "rejected", reviewedBy: string, req?: Request) {
     await db.execute(
       "UPDATE wfm_roster_swap_request SET status = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?",
       [status, reviewedBy, id]
     );
+    await logSensitiveAction({ actor_user_id: reviewedBy, action_type: "ROSTER_SWAP_REVIEWED", module_key: "WFM", entity_type: "wfm_roster_swap_request", entity_id: id, change_summary: { status }, req });
   },
 };
 
@@ -70,8 +73,9 @@ export const rosterConflictService = {
     return id;
   },
 
-  async resolve(id: string) {
+  async resolve(id: string, resolvedBy: string, req?: Request) {
     await db.execute("UPDATE wfm_roster_conflict_log SET resolved = 1 WHERE id = ?", [id]);
+    await logSensitiveAction({ actor_user_id: resolvedBy, action_type: "ROSTER_CONFLICT_RESOLVED", module_key: "WFM", entity_type: "wfm_roster_conflict_log", entity_id: id, req });
   },
 };
 
@@ -86,7 +90,7 @@ export const coverageService = {
     actual_headcount: number;
     absent_count: number;
     leave_count: number;
-  }) {
+  }, createdBy?: string, req?: Request) {
     const id = randomUUID();
     const shrinkage = data.planned_headcount > 0
       ? Math.round(100 * (data.absent_count + data.leave_count) / data.planned_headcount * 100) / 100
@@ -108,6 +112,9 @@ export const coverageService = {
        data.planned_headcount, data.actual_headcount, data.absent_count, data.leave_count,
        shrinkage, coverage]
     );
+    if (createdBy) {
+      await logSensitiveAction({ actor_user_id: createdBy, action_type: "COVERAGE_SNAPSHOT_UPSERTED", module_key: "WFM", entity_type: "wfm_coverage_snapshot", entity_id: id, change_summary: { snapshot_date: data.snapshot_date }, req });
+    }
   },
 
   async getSnapshots(filters: { from_date?: string; to_date?: string; process_id?: string }) {
@@ -136,13 +143,16 @@ export const attritionService = {
     exit_type: string;
     tenure_days?: number;
     recorded_by: string;
-  }) {
+    exit_request_id?: string;
+  }, req?: Request) {
     const id = randomUUID();
     await db.execute(
-      "INSERT INTO attrition_record (id, employee_id, process_id, branch_id, exit_date, exit_type, tenure_days, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO attrition_record (id, employee_id, process_id, branch_id, exit_date, exit_type, tenure_days, recorded_by, exit_request_id, is_provisional) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [id, data.employee_id, data.process_id ?? null, data.branch_id ?? null,
-       data.exit_date, data.exit_type, data.tenure_days ?? null, data.recorded_by]
+       data.exit_date, data.exit_type, data.tenure_days ?? null, data.recorded_by,
+       data.exit_request_id ?? null, data.exit_request_id ? 0 : 1]
     );
+    await logSensitiveAction({ actor_user_id: data.recorded_by, action_type: "ATTRITION_RECORDED", module_key: "WFM", entity_type: "attrition_record", entity_id: id, change_summary: { employee_id: data.employee_id, exit_type: data.exit_type }, req });
     return id;
   },
 

@@ -168,3 +168,13 @@ CREATE TABLE IF NOT EXISTS attrition_record (
   FOREIGN KEY (process_id)  REFERENCES process_master(id) ON DELETE SET NULL,
   FOREIGN KEY (branch_id)   REFERENCES branch_master(id)  ON DELETE SET NULL
 );
+
+-- Add exit_request_id and is_provisional to link attrition records to exit_request table.
+-- is_provisional = 1 flags records not yet linked to an exit_request (provisional analytics only).
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA='mas_hrms' AND TABLE_NAME='attrition_record' AND COLUMN_NAME='exit_request_id') = 0,
+  'ALTER TABLE attrition_record ADD COLUMN exit_request_id CHAR(36) NULL, ADD COLUMN is_provisional TINYINT(1) NOT NULL DEFAULT 1',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
