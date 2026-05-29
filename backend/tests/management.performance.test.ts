@@ -210,3 +210,44 @@ describe("Portal endpoint blocked without Supabase JWT", () => {
     expect(r.status).toBe(401);
   });
 });
+
+describe("SECURITY — Manager scope (deferred pending user_assignment_scope)", () => {
+  it("manager 403 on team-kpi", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u-mgr" } }, error: null });
+    mockExecute.mockResolvedValueOnce([[{ role_key: "manager" }], []]);
+    const r = await request(app).get("/api/management/team-kpi").set({ Authorization: "Bearer mgr.token" });
+    expect(r.status).toBe(403);
+  });
+  it("manager 403 on alerts", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u-mgr" } }, error: null });
+    mockExecute.mockResolvedValueOnce([[{ role_key: "manager" }], []]);
+    const r = await request(app).get("/api/management/alerts").set({ Authorization: "Bearer mgr.token" });
+    expect(r.status).toBe(403);
+  });
+  it("manager 403 on dashboard", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u-mgr" } }, error: null });
+    mockExecute.mockResolvedValueOnce([[{ role_key: "manager" }], []]);
+    const r = await request(app).get("/api/management/dashboard").set({ Authorization: "Bearer mgr.token" });
+    expect(r.status).toBe(403);
+  });
+  it("employee sees own coaching (200) via server-side mapping", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u-emp" } }, error: null });
+    mockExecute.mockResolvedValueOnce([[{ role_key: "employee" }], []]);
+    mockExecute.mockResolvedValueOnce([[{ id: "emp-self", employee_code: "E001" }], []]);
+    mockExecute.mockResolvedValueOnce([[{ id: "c-1", employee_id: "emp-self" }], []]);
+    const r = await request(app).get("/api/management/coaching").set({ Authorization: "Bearer emp.token" });
+    expect(r.status).toBe(200);
+  });
+  it("dashboard response contains no payroll fields", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u-admin" } }, error: null });
+    mockExecute.mockResolvedValueOnce([[{ role_key: "admin" }], []]);
+    mockExecute.mockResolvedValueOnce([[{ employees_with_kpi: 5, avg_score: 80 }], []]);
+    mockExecute.mockResolvedValueOnce([[{ pending_sessions: 2 }], []]);
+    mockExecute.mockResolvedValueOnce([[{ unacked_critical: 1 }], []]);
+    const r = await request(app).get("/api/management/dashboard").set({ Authorization: "Bearer admin.token" });
+    expect(r.status).toBe(200);
+    const keys = Object.keys(r.body.data?.kpi ?? {});
+    expect(keys).not.toContain("salary");
+    expect(keys).not.toContain("ctc");
+  });
+});
