@@ -2,25 +2,18 @@
 -- Package 4: Payslip, Tax Declaration, Full & Final, Payroll Disbursement
 -- Additive only — no existing tables modified, no SQL executed on production.
 
--- ─── 1. salary_payslip ────────────────────────────────────────────────────────
--- Persists generated payslip metadata per employee per run.
--- file_url is optional (JSON/text payslip; no PDF generation in scope).
-CREATE TABLE IF NOT EXISTS salary_payslip (
-  id               CHAR(36)      NOT NULL DEFAULT (UUID()),
-  run_id           CHAR(36)      NOT NULL,
-  employee_id      CHAR(36)      NOT NULL,
-  payslip_ref      VARCHAR(64)   NOT NULL COMMENT 'Human-readable ref, e.g. PS-2026-05-MCN001',
-  generated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  generated_by     CHAR(36)          NULL,
-  file_url         VARCHAR(1024)     NULL COMMENT 'Optional storage URL; null when JSON-only payslip',
-  acknowledged_at  DATETIME          NULL COMMENT 'Set when employee acknowledges receipt',
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_payslip_run_emp (run_id, employee_id),
-  INDEX idx_payslip_employee (employee_id),
-  INDEX idx_payslip_run (run_id),
-  CONSTRAINT fk_payslip_run
-    FOREIGN KEY (run_id) REFERENCES salary_prep_run (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ─── 1. salary_payslip — additive columns only (table created in 007_payroll.sql) ──
+-- Add missing columns: payslip_ref, generated_by, acknowledged_at
+-- run_id links to salary_prep_run via prep_line_id → salary_prep_line.run_id join; no additional column needed.
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME   = 'salary_payslip'
+     AND COLUMN_NAME  = 'generated_by') = 0,
+  'ALTER TABLE salary_payslip ADD COLUMN generated_by CHAR(36) NULL, ADD COLUMN acknowledged_at DATETIME NULL, ADD COLUMN payslip_ref VARCHAR(64) NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- ─── 2. tax_declaration ───────────────────────────────────────────────────────
 -- Employee investment/income declaration for TDS projection.
@@ -89,3 +82,15 @@ CREATE TABLE IF NOT EXISTS payroll_disbursement (
   CONSTRAINT fk_disbursement_run
     FOREIGN KEY (run_id) REFERENCES salary_prep_run (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── 5. Additive ALTERs — full_final_calculation ─────────────────────────────
+-- Add is_ff_provisional: marks F&F as draft until statutory fields are verified.
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME   = 'full_final_calculation'
+     AND COLUMN_NAME  = 'is_ff_provisional') = 0,
+  'ALTER TABLE full_final_calculation ADD COLUMN is_ff_provisional TINYINT(1) NOT NULL DEFAULT 1 COMMENT ''1 = draft/unverified; 0 = statutory fields verified''',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

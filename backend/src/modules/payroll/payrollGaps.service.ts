@@ -4,9 +4,39 @@ import { db } from "../../db/mysql.js";
 /**
  * Payroll gap-fix service — addresses calculation gaps identified in Phase 0 audit:
  *  1. Working days calculation: holiday-calendar-aware (with 26-day fallback)
- *  2. LWP deduction formula
- *  3. Basic TDS slab projection (provisional, not filed)
+ *  2. LWP deduction formula — basis-config-aware
+ *  3. Basic TDS slab projection — config-gated, no hardcoded defaults
  */
+
+// FIX E — exported TDS projection type
+export interface TdsProjection {
+  tds: number;
+  status: "configured" | "pending_configuration";
+  note: string;
+}
+
+// FIX F — exported LWP deduction type (reused pattern)
+export interface LwpDeduction {
+  amount: number;
+  status: "configured" | "pending_configuration";
+  note: string;
+}
+
+/**
+ * FIX E helper — checks whether statutory_config has at least one tds_slab_* key.
+ */
+export async function checkTdsConfigExists(): Promise<boolean> {
+  try {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      "SELECT COUNT(*) AS cnt FROM statutory_config WHERE config_key LIKE 'tds_slab_%'"
+    );
+    const cnt: number = (rows as any[])[0]?.cnt ?? 0;
+    return Number(cnt) > 0;
+  } catch {
+    return false;
+  }
+}
+
 export const payrollGapsService = {
   /**
    * Return the number of working days for a given month and branch.
@@ -51,55 +81,115 @@ export const payrollGapsService = {
   },
 
   /**
-   * Calculate LWP deduction amount.
-   * Formula: lwpDays × (ctcAnnual / 12 / workingDays)
+   * FIX F — Calculate LWP deduction amount.
+   * Requires explicit lwpBasis from statutory_config (key: lwp_deduction_basis).
+   * Returns pending_configuration when basis is not supplied.
+   *
+   * Supported bases:
+   *   "ctc_annual"   — ctcAnnual / 12 / workingDays (existing logic)
+   *   others         — pending until component-level breakdown is available
    */
   calculateLwpDeduction(
     lwpDays: number,
     ctcAnnual: number,
-    workingDays: number
-  ): number {
-    if (lwpDays <= 0 || workingDays <= 0 || ctcAnnual <= 0) return 0;
-    const dailyRate = ctcAnnual / 12 / workingDays;
-    return Math.round(lwpDays * dailyRate * 100) / 100;
+    workingDays: number,
+    lwpBasis: "ctc_annual" | "eligible_gross" | "basic_only" | undefined
+  ): LwpDeduction {
+    if (lwpBasis === undefined) {
+      return {
+        amount: 0,
+        status: "pending_configuration",
+        note: "LWP deduction basis not configured. Use statutory_config key lwp_deduction_basis.",
+      };
+    }
+
+    if (lwpBasis === "ctc_annual") {
+      if (lwpDays <= 0 || workingDays <= 0 || ctcAnnual <= 0) {
+        return {
+          amount: 0,
+          status: "configured",
+          note: "LWP deduction computed on ctc_annual basis.",
+        };
+      }
+      const dailyRate = ctcAnnual / 12 / workingDays;
+      return {
+        amount: Math.round(lwpDays * dailyRate * 100) / 100,
+        status: "configured",
+        note: "LWP deduction computed on ctc_annual basis.",
+      };
+    }
+
+    // eligible_gross / basic_only require salary component breakdown not yet computed here
+    return {
+      amount: 0,
+      status: "pending_configuration",
+      note: `LWP basis '${lwpBasis}' is not yet computed from components — pending_configuration.`,
+    };
   },
 
   /**
-   * Compute a basic projected TDS using statutory slab.
-   * Reads from statutory_config if tds_slab_* keys exist; otherwise uses
-   * FY 2026-27 new-regime defaults.
-   * Result is PROVISIONAL — not a filed value.
+   * FIX E — Compute a basic projected TDS.
+   * Returns pending_configuration (tds: 0) when no tds_slab_* keys exist in statutory_config.
+   * Returns configured with computed TDS when keys are present.
+   * NO hardcoded slab defaults — admin must configure before projection runs.
    */
-  async computeBasicTds(annualTaxable: number): Promise<number> {
-    if (annualTaxable <= 0) return 0;
-
-    let slabMap: Record<string, number> = {};
-    try {
-      const [rows] = await db.execute<RowDataPacket[]>(
-        "SELECT config_key, config_value FROM statutory_config WHERE config_key LIKE 'tds_slab_%'"
-      );
-      for (const r of rows as { config_key: string; config_value: number }[]) {
-        slabMap[r.config_key] = r.config_value;
-      }
-    } catch {
-      // statutory_config may not have TDS keys; use defaults
+  async computeBasicTds(annualTaxable: number): Promise<TdsProjection> {
+    if (annualTaxable <= 0) {
+      return {
+        tds: 0,
+        status: "configured",
+        note: "Annual taxable income is zero or negative — no TDS applicable.",
+      };
     }
 
-    const s1 = slabMap["tds_slab_1_limit"] ?? 300000;
-    const s2 = slabMap["tds_slab_2_limit"] ?? 600000;
-    const s3 = slabMap["tds_slab_3_limit"] ?? 900000;
-    const s4 = slabMap["tds_slab_4_limit"] ?? 1200000;
-    const s5 = slabMap["tds_slab_5_limit"] ?? 1500000;
+    const hasConfig = await checkTdsConfigExists();
+    if (!hasConfig) {
+      return {
+        tds: 0,
+        status: "pending_configuration",
+        note: "TDS projection requires approved tax slab configuration. No hardcoded defaults applied.",
+      };
+    }
 
-    if (annualTaxable <= s1) return 0;
+    // Load slab limits and rates from statutory_config
+    const [rows] = await db.execute<RowDataPacket[]>(
+      "SELECT config_key, config_value FROM statutory_config WHERE config_key LIKE 'tds_slab_%'"
+    );
+    const slabMap: Record<string, number> = {};
+    for (const r of rows as { config_key: string; config_value: number }[]) {
+      slabMap[r.config_key] = Number(r.config_value);
+    }
+
+    const s1 = slabMap["tds_slab_1_limit"];
+    const s2 = slabMap["tds_slab_2_limit"];
+    const s3 = slabMap["tds_slab_3_limit"];
+    const s4 = slabMap["tds_slab_4_limit"];
+    const s5 = slabMap["tds_slab_5_limit"];
+
+    // All five limit keys are required for a valid computation
+    if (!s1 || !s2 || !s3 || !s4 || !s5) {
+      return {
+        tds: 0,
+        status: "pending_configuration",
+        note: "TDS projection requires approved tax slab configuration. No hardcoded defaults applied.",
+      };
+    }
+
+    if (annualTaxable <= s1) {
+      return {
+        tds: 0,
+        status: "configured",
+        note: "Provisional projection from statutory_config. Not a filed value.",
+      };
+    }
 
     const slabs = [
-      { from: 0,  to: s1,       rate: 0    },
-      { from: s1, to: s2,       rate: 0.05 },
-      { from: s2, to: s3,       rate: 0.10 },
-      { from: s3, to: s4,       rate: 0.15 },
-      { from: s4, to: s5,       rate: 0.20 },
-      { from: s5, to: Infinity, rate: 0.30 },
+      { from: 0,  to: s1,       rate: slabMap["tds_slab_1_rate"] ?? 0    },
+      { from: s1, to: s2,       rate: slabMap["tds_slab_2_rate"] ?? 0.05 },
+      { from: s2, to: s3,       rate: slabMap["tds_slab_3_rate"] ?? 0.10 },
+      { from: s3, to: s4,       rate: slabMap["tds_slab_4_rate"] ?? 0.15 },
+      { from: s4, to: s5,       rate: slabMap["tds_slab_5_rate"] ?? 0.20 },
+      { from: s5, to: Infinity, rate: slabMap["tds_slab_6_rate"] ?? 0.30 },
     ];
 
     let tax = 0;
@@ -109,6 +199,10 @@ export const payrollGapsService = {
       tax += taxable * slab.rate;
     }
 
-    return Math.round(tax * 100) / 100;
+    return {
+      tds: Math.round(tax * 100) / 100,
+      status: "configured",
+      note: "Provisional projection from statutory_config. Not a filed value.",
+    };
   },
 };

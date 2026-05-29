@@ -30,6 +30,7 @@ export interface FullFinalCalculation {
   advances_recovery: number;
   net_payable: number;
   status: "draft" | "verified" | "approved" | "paid";
+  is_ff_provisional: number;
   prepared_by: string | null;
   approved_by: string | null;
   approved_at: string | null;
@@ -39,9 +40,17 @@ export interface FullFinalCalculation {
   employee_name?: string;
 }
 
+// FIX G — exported gratuity calculation type
+export interface GratuityCalculation {
+  amount: number;
+  status: "draft" | "not_eligible" | "pending_configuration";
+  note: string;
+}
+
 export const ffService = {
   /**
    * Create a Full & Final calculation for an exit request.
+   * Always sets is_ff_provisional = 1 on insert.
    * Logs FULL_FINAL_CREATED audit entry.
    */
   async createFF(
@@ -59,13 +68,14 @@ export const ffService = {
     if (!exitReq) throw new Error("Exit request not found");
 
     const id = randomUUID();
+    // FIX H — explicitly set is_ff_provisional = 1 on every new insert
     await db.execute(
       `INSERT INTO full_final_calculation
          (id, exit_request_id, employee_id, calculation_date,
           notice_period_days, notice_shortfall_days, notice_recovery,
           earned_leave_encashment, gratuity_amount, salary_hold,
-          advances_recovery, net_payable, status, prepared_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+          advances_recovery, net_payable, status, is_ff_provisional, prepared_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?)`,
       [
         id,
         exitRequestId,
@@ -116,6 +126,7 @@ export const ffService = {
 
   /**
    * Approve an F&F calculation. Admin only (enforced at route level).
+   * FIX H — blocks approval when is_ff_provisional = 1.
    * Logs FULL_FINAL_APPROVED audit entry.
    */
   async approveFF(
@@ -130,6 +141,14 @@ export const ffService = {
     const rec = (rows as any[])[0];
     if (!rec) throw new Error("F&F calculation not found");
     if (rec.status === "paid") throw new Error("F&F already paid — cannot re-approve");
+
+    // FIX H — block approval while any statutory value is provisional
+    if (Number(rec.is_ff_provisional) === 1) {
+      throw new Error(
+        "Cannot approve F&F: calculation contains provisional statutory values. " +
+        "Verify and recalculate with approved configuration before approving."
+      );
+    }
 
     await db.execute(
       `UPDATE full_final_calculation
@@ -152,31 +171,101 @@ export const ffService = {
   },
 
   /**
-   * Gratuity calculation per Payment of Gratuity Act.
-   * Eligibility: continuous service >= 5 years.
-   * Formula: (lastGrossMonthly / 26) * 15 * completedYears
+   * FIX H — Mark an F&F record as no longer provisional after manual verification.
+   * Authorised user confirms all statutory values are approved and correct.
+   * Logs FF_PROVISIONAL_CLEARED audit entry.
+   */
+  async setProvisionalFalse(
+    id: string,
+    verifiedBy: string,
+    req?: Request
+  ): Promise<FullFinalCalculation> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      "SELECT * FROM full_final_calculation WHERE id = ? LIMIT 1",
+      [id]
+    );
+    const rec = (rows as any[])[0];
+    if (!rec) throw new Error("F&F calculation not found");
+
+    await db.execute(
+      `UPDATE full_final_calculation
+          SET is_ff_provisional = 0, updated_at = NOW()
+        WHERE id = ?`,
+      [id]
+    );
+
+    void logSensitiveAction({
+      actor_user_id: verifiedBy,
+      action_type: "FF_PROVISIONAL_CLEARED",
+      module_key: "exit",
+      entity_type: "full_final_calculation",
+      entity_id: id,
+      change_summary: { exit_request_id: rec.exit_request_id, verified_by: verifiedBy },
+      req,
+    });
+
+    return this.getFF(rec.exit_request_id);
+  },
+
+  /**
+   * FIX G — Gratuity calculation per Payment of Gratuity Act.
+   * Requires explicit gratuityWageBase (approved eligible wage).
+   * Returns pending_configuration when wage base is not supplied.
+   * Returns not_eligible when tenure < minYears.
+   * Returns draft amount with note when eligible.
    *
-   * @param doj   - Date of joining (ISO string or Date)
-   * @param exitDate - Last working date (ISO string or Date)
-   * @param lastGross - Last month's gross salary (monthly)
-   * @returns Gratuity amount in INR; 0 if tenure < 5 years
+   * @param doj              - Date of joining (ISO string or Date)
+   * @param exitDate         - Last working date (ISO string or Date)
+   * @param gratuityWageBase - Approved eligible monthly wage; undefined = not configured
+   * @param config           - Optional overrides: minYears, daysInMonth, monthsPerYear, maxGratuity
    */
   calculateGratuity(
     doj: string | Date,
     exitDate: string | Date,
-    lastGross: number
-  ): number {
-    const joinDate  = new Date(doj);
-    const lwd       = new Date(exitDate);
+    gratuityWageBase: number | undefined,
+    config?: {
+      minYears?: number;
+      daysInMonth?: number;
+      monthsPerYear?: number;
+      maxGratuity?: number;
+    }
+  ): GratuityCalculation {
+    if (gratuityWageBase === undefined) {
+      return {
+        amount: 0,
+        status: "pending_configuration",
+        note: "Gratuity wage base not configured. Admin must supply approved eligible wage.",
+      };
+    }
 
-    // Tenure in fractional years
-    const diffMs   = lwd.getTime() - joinDate.getTime();
+    const joinDate    = new Date(doj);
+    const lwd         = new Date(exitDate);
+    const diffMs      = lwd.getTime() - joinDate.getTime();
     const tenureYears = diffMs / (365.25 * 24 * 60 * 60 * 1000);
     const completedYears = Math.floor(tenureYears);
 
-    if (completedYears < 5) return 0;
+    const minYears     = config?.minYears     ?? 5;
+    const daysInMonth  = config?.daysInMonth  ?? 26;
+    const monthsPer    = config?.monthsPerYear ?? 15;
 
-    const gratuity = (lastGross / 26) * 15 * completedYears;
-    return Math.round(gratuity * 100) / 100;
+    if (completedYears < minYears) {
+      return {
+        amount: 0,
+        status: "not_eligible",
+        note: "Minimum service period not completed.",
+      };
+    }
+
+    let amount = (gratuityWageBase / daysInMonth) * monthsPer * completedYears;
+
+    if (config?.maxGratuity !== undefined && amount > config.maxGratuity) {
+      amount = config.maxGratuity;
+    }
+
+    return {
+      amount: Math.round(amount * 100) / 100,
+      status: "draft",
+      note: "Draft calculation. Requires verification before F&F approval.",
+    };
   },
 };
