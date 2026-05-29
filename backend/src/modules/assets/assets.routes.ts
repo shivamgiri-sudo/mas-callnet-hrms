@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { requireAuth } from "../../middleware/authMiddleware.js";
 import { requireRole } from "../../middleware/requireRole.js";
 import type { AuthenticatedRequest } from "../../middleware/authMiddleware.js";
+import { getEmployeeForUser, hasRole } from "../../shared/accessGuard.js";
 import { assetsService } from "./assets.service.js";
 
 const router = Router();
@@ -10,7 +11,8 @@ const h = (fn: Function) => (req: any, res: any, next: any) => fn(req, res).catc
 
 router.use(requireAuth);
 
-router.get("/", h(async (req: AuthenticatedRequest, res: Response) => {
+// Full asset master list: admin/hr only
+router.get("/", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: await assetsService.list(req.query as any) });
 }));
 
@@ -18,11 +20,25 @@ router.post("/", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest,
   res.status(201).json({ data: await assetsService.create(req.body) });
 }));
 
+// Employee self-service: own assignments only; admin/hr can query any employee
 router.get("/employee/:employeeId", h(async (req: AuthenticatedRequest, res: Response) => {
-  res.json({ data: await assetsService.listByEmployee(req.params.employeeId) });
+  const userId = req.authUser!.id;
+  const targetId = req.params.employeeId;
+
+  if (await hasRole(userId, "admin", "hr")) {
+    return res.json({ data: await assetsService.listByEmployee(targetId) });
+  }
+
+  const callerEmp = await getEmployeeForUser(userId);
+  if (!callerEmp || callerEmp.id !== targetId) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+
+  res.json({ data: await assetsService.listByEmployee(targetId) });
 }));
 
-router.get("/:id", h(async (req: AuthenticatedRequest, res: Response) => {
+// Asset detail: admin/hr only
+router.get("/:id", requireRole("admin", "hr"), h(async (req: AuthenticatedRequest, res: Response) => {
   const asset = await assetsService.getById(req.params.id);
   if (!asset) return res.status(404).json({ error: "Not found" });
   res.json({ data: asset });

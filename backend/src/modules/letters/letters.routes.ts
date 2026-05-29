@@ -3,7 +3,9 @@ import type { Response } from "express";
 import { requireAuth } from "../../middleware/authMiddleware.js";
 import { requireRole } from "../../middleware/requireRole.js";
 import type { AuthenticatedRequest } from "../../middleware/authMiddleware.js";
+import { getEmployeeForUser, hasRole } from "../../shared/accessGuard.js";
 import { lettersService } from "./letters.service.js";
+import { logSensitiveAction } from "../../shared/auditLog.js";
 
 const router = Router();
 const h = (fn: Function) => (req: any, res: any, next: any) => fn(req, res).catch(next);
@@ -28,7 +30,27 @@ router.get("/employee/:employeeId", requireRole("admin", "hr"), h(async (req: Au
   res.json({ data: await lettersService.listGenerated(req.params.employeeId) });
 }));
 
+// Acknowledge: employee may only acknowledge their own letter; admin/hr override is audited
 router.post("/:letterId/acknowledge", h(async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.id;
+  const letter = await lettersService.getById(req.params.letterId);
+  if (!letter) return res.status(404).json({ error: "Not found" });
+
+  const isAdminHr = await hasRole(userId, "admin", "hr");
+  if (!isAdminHr) {
+    const emp = await getEmployeeForUser(userId);
+    if (!emp || emp.id !== letter.employee_id) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+  } else {
+    // Admin/HR override: audit it
+    await logSensitiveAction({
+      actor_user_id: userId, action_type: "LETTER_ACK_ADMIN_OVERRIDE",
+      module_key: "LETTERS", entity_type: "generated_letter", entity_id: req.params.letterId,
+      req,
+    });
+  }
+
   await lettersService.acknowledge(req.params.letterId);
   res.json({ ok: true });
 }));

@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { requireAuth } from "../../middleware/authMiddleware.js";
 import { requireRole } from "../../middleware/requireRole.js";
 import type { AuthenticatedRequest } from "../../middleware/authMiddleware.js";
+import { selfOrAdminHr } from "../../shared/accessGuard.js";
 import { lifecycleService } from "./lifecycle.service.js";
 
 const router = Router();
@@ -10,7 +11,8 @@ const h = (fn: Function) => (req: any, res: any, next: any) => fn(req, res).catc
 
 router.use(requireAuth);
 
-router.get("/employees/:id/lifecycle", h(async (req: AuthenticatedRequest, res: Response) => {
+// Admin/HR see any employee; employee sees own
+router.get("/employees/:id/lifecycle", selfOrAdminHr("id"), h(async (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: await lifecycleService.listEvents(req.params.id) });
 }));
 
@@ -22,7 +24,8 @@ router.post("/employees/:id/lifecycle", requireRole("admin", "hr"), h(async (req
   res.status(201).json({ data: event });
 }));
 
-router.get("/employees/:id/documents", h(async (req: AuthenticatedRequest, res: Response) => {
+// Admin/HR see any employee's documents; employee sees own
+router.get("/employees/:id/documents", selfOrAdminHr("id"), h(async (req: AuthenticatedRequest, res: Response) => {
   await lifecycleService.logDocumentAccess(`list:${req.params.id}`, req.authUser!.id, "view", req.ip);
   res.json({ data: await lifecycleService.listDocuments(req.params.id) });
 }));

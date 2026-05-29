@@ -7,6 +7,14 @@ function interpolate(template: string, vars: Record<string, string | null>): str
 }
 
 export const lettersService = {
+  async getById(letterId: string): Promise<{ id: string; employee_id: string; letter_type: string } | null> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      "SELECT id, employee_id, letter_type FROM generated_letter WHERE id = ? LIMIT 1",
+      [letterId]
+    );
+    return (rows as RowDataPacket[])[0] as { id: string; employee_id: string; letter_type: string } ?? null;
+  },
+
   async listTemplates() {
     const [rows] = await db.execute<RowDataPacket[]>(
       "SELECT id, template_code, template_name, letter_type FROM letter_template WHERE active_status = 1 ORDER BY letter_type"
