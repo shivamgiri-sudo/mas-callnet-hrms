@@ -39,7 +39,7 @@ MySQL `user_roles` is the authority for backend API access and sensitive-data en
 
 - Added `PORTAL_DEMO_BYPASS` env var to `backend/src/config/env.ts` (default: `"false"`).
 - Added `isDemoBypassEnabled()` method to `portal.auth.service.ts` — returns `true` only when `PORTAL_DEMO_BYPASS=true` is explicitly set.
-- Production default is secure: no automatic demo JWT issuance without this flag.
+- Production default is secure: bypass is disabled when absent, false, or when `NODE_ENV=production` (even if flag is true). No automatic demo JWT issuance without this flag in a non-production environment.
 - The OTP verification flow is unchanged — all auth goes through bcrypt OTP + MySQL client_user lookup.
 
 ### B. Authenticated Client Access Logging
@@ -68,6 +68,8 @@ Added `logAccess` to all remaining authenticated client portal endpoints:
 - Compares MySQL `user_roles` (backend authority) against Supabase `user_roles` (UI mirror).
 - Returns: `total_mysql_users`, `total_supabase_users`, `mismatches[]`, `checked_at`.
 - Each mismatch includes: `user_id`, `mysql_roles`, `supabase_roles`, `in_supabase_only`, `in_mysql_only`.
+
+Note: This endpoint reconciles role assignments only. Page-access reconciliation (`role_page_access`) and assignment-scope reconciliation remain later enhancements.
 
 ### New files
 - `backend/src/modules/access/access.service.ts`

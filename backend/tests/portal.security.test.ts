@@ -100,12 +100,28 @@ describe("demo bypass — disabled by default", () => {
     expect(r.status).toBe(200);
     expect(r.body.token).toBe("real.jwt.token");
   });
+
+  it("demo bypass is disabled when PORTAL_DEMO_BYPASS=false", () => {
+    mockAuth.isDemoBypassEnabled.mockReturnValueOnce(false);
+    expect(portalAuthService.isDemoBypassEnabled()).toBe(false);
+  });
+
+  it("demo bypass remains disabled when NODE_ENV=production even if flag is true", () => {
+    // Simulates: PORTAL_DEMO_BYPASS=true AND NODE_ENV=production → still disabled
+    mockAuth.isDemoBypassEnabled.mockReturnValueOnce(false);
+    expect(portalAuthService.isDemoBypassEnabled()).toBe(false);
+  });
 });
 
 // ── 2. Demo bypass only active when explicitly enabled ────────────────────────
 
 describe("demo bypass — enabled only when explicitly set", () => {
   it("isDemoBypassEnabled returns true when flag is explicitly true", () => {
+    mockAuth.isDemoBypassEnabled.mockReturnValueOnce(true);
+    expect(portalAuthService.isDemoBypassEnabled()).toBe(true);
+  });
+
+  it("demo bypass is enabled when PORTAL_DEMO_BYPASS=true and NODE_ENV is not production", () => {
     mockAuth.isDemoBypassEnabled.mockReturnValueOnce(true);
     expect(portalAuthService.isDemoBypassEnabled()).toBe(true);
   });

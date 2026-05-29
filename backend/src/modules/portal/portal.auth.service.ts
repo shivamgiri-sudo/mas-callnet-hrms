@@ -55,7 +55,7 @@ export const portalAuthService = {
    * Production default is false — never issues a token without OTP.
    */
   isDemoBypassEnabled(): boolean {
-    return env.PORTAL_DEMO_BYPASS === "true";
+    return env.PORTAL_DEMO_BYPASS === "true" && env.NODE_ENV !== "production";
   },
 
   async verifyOtp(email: string, otp: string): Promise<string> {
