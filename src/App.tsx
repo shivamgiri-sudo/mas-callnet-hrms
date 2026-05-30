@@ -37,6 +37,7 @@ import NotificationPreferences from "./pages/NotificationPreferences";
 import Changelog from "./pages/Changelog";
 
 import ModuleLauncher from "./pages/ModuleLauncher";
+import RoleJourneyDashboard from "./pages/RoleJourneyDashboard";
 import NativeATSDashboard from "./pages/NativeATSDashboard";
 import NativeATSCandidateRegistration from "./pages/NativeATSCandidateRegistration";
 import NativeATSRecruiterDashboard from "./pages/NativeATSRecruiterDashboard";
@@ -107,6 +108,7 @@ const App = () => (
             <Route path="/notification-preferences" element={<ProtectedRoute><NotificationPreferences /></ProtectedRoute>} />
 
             <Route path="/modules" element={<ProtectedRoute><ModuleLauncher /></ProtectedRoute>} />
+            <Route path="/role-journeys" element={<ProtectedRoute><RoleJourneyDashboard /></ProtectedRoute>} />
             <Route path="/ats/dashboard" element={<ProtectedRoute><Gate pageCode="ATS_DASHBOARD"><NativeATSDashboard /></Gate></ProtectedRoute>} />
             <Route path="/ats/candidate-registration" element={<ProtectedRoute><NativeATSCandidateRegistration /></ProtectedRoute>} />
             <Route path="/ats/recruiter/my-candidates" element={<ProtectedRoute><Gate pageCode="ATS_RECRUITER_QUEUE"><NativeATSRecruiterDashboard /></Gate></ProtectedRoute>} />

@@ -75,6 +75,7 @@ const navGroups: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: <Home className="h-4 w-4" />, description: "Workspace overview" },
       { label: "My Modules", href: "/modules", icon: <Package className="h-4 w-4" />, description: "Role-wise ATS, LMS, WFM and performance modules" },
+      { label: "Role Journeys", href: "/role-journeys", icon: <ClipboardList className="h-4 w-4" />, description: "Role-wise readiness and operating journey map" },
       { label: "Reports", href: "/reports", icon: <BarChart3 className="h-4 w-4" />, adminOnly: true, description: "Reports and insights" },
     ],
   },
@@ -253,7 +254,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       {item.badge ? (
                         <Badge className="ml-2 h-5 rounded-full bg-cyan-100 px-2 text-[10px] font-semibold text-cyan-700 hover:bg-cyan-100">{item.badge}</Badge>
                       ) : isActive ? (
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                        <ChevronRight className="h-4 w-4 text-slate-400" />
                       ) : null}
                     </Link>
                   );
@@ -264,64 +265,95 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </nav>
 
-      <div className="border-t border-white/10 p-3">
-        <Link to="/changelog" onClick={() => setSidebarOpen(false)} className="flex items-center justify-center rounded-xl px-3 py-2 text-[11px] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
-          v{displayVersion}
-        </Link>
+      <div className="border-t border-white/10 px-3 py-4">
+        <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] text-slate-400">
+          Version {displayVersion}
+        </div>
+        <Button variant="ghost" onClick={handleSignOut} disabled={isSigningOut} className="w-full justify-start gap-3 text-slate-300 hover:bg-white/10 hover:text-white">
+          <LogOut className="h-4 w-4" />
+          {isSigningOut ? "Signing out..." : "Sign out"}
+        </Button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#f3f6fb] text-slate-900">
+    <div className="min-h-screen bg-slate-50">
       <PWAInstallBanner />
-      {sidebarOpen && (
-        <button type="button" aria-label="Close sidebar" className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] border-r border-slate-900 bg-[#0f172a] shadow-2xl lg:block"><SidebarContent /></aside>
-      <aside className={cn("fixed inset-y-0 left-0 z-50 w-[280px] bg-[#0f172a] shadow-2xl transition-transform duration-300 lg:hidden", sidebarOpen ? "translate-x-0" : "-translate-x-full")}>
-        <div className="absolute right-3 top-3 z-10">
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white" onClick={() => setSidebarOpen(false)}><X className="h-4 w-4" /></Button>
-        </div>
+      <div className="hidden h-screen w-72 border-r border-slate-200 lg:fixed lg:inset-y-0 lg:flex">
         <SidebarContent />
-      </aside>
-      <div className="min-h-screen lg:pl-[260px]">
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-sm shadow-slate-200/50 backdrop-blur">
-          <div className="flex min-h-[68px] items-center gap-4 px-4 sm:px-5 lg:px-6">
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button>
-            <form onSubmit={handleSearchSubmit} className="relative max-w-md flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search modules, people, reports..." className="pl-10" />
-              {searchQuery.trim() && searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-12 z-50 rounded-2xl border bg-popover p-2 shadow-lg">
+      </div>
+
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-slate-950/60" onClick={() => setSidebarOpen(false)} />
+          <div className="absolute inset-y-0 left-0 w-80 max-w-[90vw] shadow-2xl">
+            <SidebarContent />
+          </div>
+        </div>
+      )}
+
+      <div className="lg:pl-72">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur lg:px-6">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+              <Menu className="h-5 w-5" />
+            </Button>
+            <form onSubmit={handleSearchSubmit} className="relative hidden flex-1 md:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search modules, people, reports..." className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-10" />
+              {searchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-12 z-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
                   {searchResults.slice(0, 6).map((item) => (
-                    <button key={item.href} type="button" onClick={() => { navigate(item.href); setSearchQuery(""); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent">
-                      {item.icon}
-                      <div><p className="font-medium">{item.label}</p><p className="text-xs text-muted-foreground">{item.description}</p></div>
+                    <button key={`${item.groupTitle}-${item.label}`} type="button" onClick={() => { navigate(item.href); setSearchQuery(""); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50">
+                      <span className="text-slate-500">{item.icon}</span>
+                      <span>
+                        <span className="block font-medium text-slate-900">{item.label}</span>
+                        <span className="block text-xs text-slate-500">{item.groupTitle}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
               )}
             </form>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-            <NotificationBell />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full"><Avatar className="h-10 w-10"><AvatarImage src="" /><AvatarFallback className="bg-primary text-primary-foreground">{userInitials}</AvatarFallback></Avatar></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel><div className="flex flex-col space-y-1"><p className="text-sm font-medium">My Account</p><p className="text-xs text-muted-foreground">{user?.email}</p></div></DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild><Link to="/profile"><User className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link to="/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} disabled={isSigningOut}><LogOut className="mr-2 h-4 w-4" />{isSigningOut ? "Signing out..." : "Sign out"}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="ml-auto flex items-center gap-2">
+              <NotificationBell />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-10 gap-2 rounded-xl px-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src="" alt={user?.email ?? "User"} />
+                      <AvatarFallback>{userInitials}</AvatarFallback>
+                    </Avatar>
+                    <span className="hidden max-w-[180px] truncate text-sm font-semibold text-slate-700 sm:inline">{user?.email}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 rounded-2xl">
+                  <DropdownMenuLabel>
+                    <div>
+                      <p className="text-sm font-semibold">Signed in</p>
+                      <p className="truncate text-xs font-normal text-slate-500">{user?.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="flex items-center gap-2"><User className="h-4 w-4" /> Profile</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/notification-preferences" className="flex items-center gap-2"><Bell className="h-4 w-4" /> Notifications</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
-        <main className="px-4 py-5 sm:px-5 lg:px-6">{children}</main>
+        <main className="px-4 py-6 lg:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );
