@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "demo:auth-users": "tsx scripts/create-demo-auth-users.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
