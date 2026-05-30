@@ -1,11 +1,14 @@
 name: Deploy to Vercel
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-manual-deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -45,45 +48,21 @@ jobs:
           url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "deploy_url=$url" >> $GITHUB_OUTPUT
 
-      - name: Comment deployment URL
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '🚀 Deployed to Vercel: ${{ steps.deploy.outputs.deploy_url }}'
-            })
+      - name: Print deployment URL
+        run: echo "Deployed to Vercel: ${{ steps.deploy.outputs.deploy_url }}"
 
 # ============================================================================
 # SETUP INSTRUCTIONS
 # ============================================================================
-# 
-# 1. Install Vercel CLI locally: npm i -g vercel
-# 
-# 2. Link your project: vercel link
-#    - This creates .vercel/project.json with orgId and projectId
-# 
-# 3. Add the following secrets to your GitHub repository:
-#    (Settings > Secrets and variables > Actions > New repository secret)
 #
-#    VERCEL_TOKEN:
-#      - Go to https://vercel.com/account/tokens
-#      - Create a new token with a descriptive name
-#      - Copy the token value
+# This workflow is manual-only by design. PR validation is handled by:
+#   .github/workflows/peopleos-ci.yml
 #
-#    VERCEL_ORG_ID:
-#      - Found in .vercel/project.json after running 'vercel link'
-#      - Or go to Vercel Dashboard > Settings > General > Team ID
+# To deploy, use GitHub Actions > Deploy to Vercel > Run workflow.
+# Do not use this workflow as a PR validation gate.
 #
-#    VERCEL_PROJECT_ID:
-#      - Found in .vercel/project.json after running 'vercel link'
-#      - Or go to Vercel Dashboard > Project > Settings > General > Project ID
-#
-# 4. Add environment variables in Vercel Dashboard:
-#    - Go to Project > Settings > Environment Variables
-#    - Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-#
+# Required repository secrets:
+# - VERCEL_TOKEN
+# - VERCEL_ORG_ID
+# - VERCEL_PROJECT_ID
 # ============================================================================
