@@ -29,6 +29,7 @@ import { atsExtRouter } from "./modules/ats-extensions/ats-ext.routes.js";
 import { wfmExtRouter } from "./modules/wfm-extensions/wfm-ext.routes.js";
 import { managementRouter } from "./modules/management/management.routes.js";
 import { rosterGovRouter } from "./modules/roster/roster.governance.routes.js";
+import { rtaRouter } from "./modules/rta/rta.routes.js";
 
 export const app = express();
 
@@ -87,6 +88,7 @@ app.use("/api/ats-ext", atsExtRouter);
 app.use("/api/wfm-ext", wfmExtRouter);
 app.use("/api/management", managementRouter);
 app.use("/api/roster-gov", rosterGovRouter);
+app.use("/api/rta", rtaRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
