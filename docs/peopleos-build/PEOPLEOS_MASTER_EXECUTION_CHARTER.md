@@ -791,6 +791,47 @@ Continue in clean branches, add additive unexecuted MySQL migrations, build real
 - templates/mapping docs/runbooks;
 - staging/UAT/go-live/rollback readiness status.
 
+## Package M — Account Control and Password Recovery
+
+> Added 2026-05-30 by owner instruction.
+
+- Employee forgot-password self-service flow (Supabase Auth reset email; MySQL audit).
+- Admin: reset password / send reset link / set temporary password.
+- Admin: force-password-change flag, account unlock, account disable, session revocation.
+- MySQL-authoritative `account_control_log`: every reset/lock/unlock/disable action
+  is written to `sensitive_action_log` with actor, reason, and IP.
+- Admin must never receive, store or log actual passwords.
+- Supabase Auth remains the login provider; MySQL tracks status, reset intent and audit only.
+- Employee self-service portal page: change password, active sessions, security log.
+- Admin HR page: account status per employee, unlock controls, audit trail.
+- Tests: reset flow, admin-reset audit, disable/enable, session revoke, no-plaintext-password invariant.
+
+**Integration points:** Package C RTA (session termination on no-show detection), Package F Client Portal
+(client-user account control).
+
+## Package N — Workforce Mandate and Capacity Planning
+
+> Added 2026-05-30 by owner instruction.
+
+- Per Client/Process/Branch/LOB/Role Group: mandated HC, buffer %, shrinkage %, attrition buffer,
+  training buffer, effective dates.
+- Bifurcated **Production HC** and **Support HC** (TL, QA, RTM/RTA, SME, AM, Process Manager,
+  Manager, Trainer, WFM, MIS, HR/IT support).
+- Support ratio rules: 1 TL per X agents, 1 QA per X agents, 1 RTM per X agents,
+  1 Trainer per batch/trainee count.
+- Calculated outputs: Target HC, Active Eligible HC, On-Notice HC, Training Pipeline,
+  Certified-Pending-Deployment, Joining-Confirmed, Shortage/Surplus.
+- Data sources (read-only aggregates): Employee Master, ATS pipeline, LMS snapshots,
+  Exit/Notice, Leave, Roster, Attendance/WFM, Client SOW/SLA.
+- Client Portal (Package F/H): approved aggregate staffing readiness only — no employee detail.
+- Leadership dashboard: HC summary per process/client with trend and shortage alerts.
+- Hard gate: no SOW/SLA data written to MySQL without explicit owner approval.
+
+**Integration points:** Package C shrinkage snapshots (feed into capacity model),
+Package D Integration Hub (source registry for HC feeds),
+Package F/H Client Portal staffing readiness tab,
+Package E Operations KPI (headcount efficiency metrics).
+
 ---
 
 # 13. Continuous Build Permission and Hard Gates
