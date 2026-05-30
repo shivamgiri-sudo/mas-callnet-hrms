@@ -93,6 +93,8 @@ app.use("/api/management", managementRouter);
 app.use("/api/roster-gov", rosterGovRouter);
 app.use("/api/rta", rtaRouter);
 app.use("/api/demo", demoRouter);
+app.use("/api/account-control", accountControlRouter);
+app.use("/api/workforce-mandate", workforceMandateRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
