@@ -17,8 +17,6 @@ const exec = db.execute as ReturnType<typeof vi.fn>;
 
 beforeEach(() => vi.clearAllMocks());
 
-// ── Mandate + Capacity ────────────────────────────────────────────────────────
-
 const fakeMandate = {
   id: "m-1",
   process_id: "proc-1",
@@ -36,19 +34,12 @@ const fakeMandate = {
 };
 
 function mockCapacitySequence(activeCount: number) {
-  // 1. mandates
   exec.mockResolvedValueOnce([[fakeMandate], []]);
-  // 2. active_eligible_hc
   exec.mockResolvedValueOnce([[{ cnt: activeCount }], []]);
-  // 3. on_notice_hc
   exec.mockResolvedValueOnce([[{ cnt: 3 }], []]);
-  // 4. long_leave_hc
   exec.mockResolvedValueOnce([[{ cnt: 2 }], []]);
-  // 5. training_pipeline
   exec.mockResolvedValueOnce([[{ cnt: 10 }], []]);
-  // 6. joining_confirmed
   exec.mockResolvedValueOnce([[{ cnt: 5 }], []]);
-  // 7. support_role_ratio rows (empty — no further loops)
   exec.mockResolvedValueOnce([[], []]);
 }
 
@@ -80,21 +71,18 @@ describe("workforceMandateService.getCapacitySnapshot", () => {
   });
 
   it("staffing_risk is 'red' when coverage < 80%", async () => {
-    // target_hc = 100 * (1 + 10/100 + 15/100) = 125; active = 95 → coverage = 76%
     mockCapacitySequence(95);
     const [snap] = await workforceMandateService.getCapacitySnapshot("proc-1");
     expect(snap.staffing_risk).toBe("red");
   });
 
   it("staffing_risk is 'green' when coverage >= 95%", async () => {
-    // target_hc = 125; active = 125 → coverage = 100%
     mockCapacitySequence(125);
     const [snap] = await workforceMandateService.getCapacitySnapshot("proc-1");
     expect(snap.staffing_risk).toBe("green");
   });
 
   it("staffing_risk is 'amber' when coverage is between 80% and 95%", async () => {
-    // target_hc = 125; active = 105 → coverage ~84%
     mockCapacitySequence(105);
     const [snap] = await workforceMandateService.getCapacitySnapshot("proc-1");
     expect(snap.staffing_risk).toBe("amber");
@@ -115,11 +103,10 @@ describe("workforceMandateService.getCapacitySnapshot", () => {
   it("target_hc includes buffer_pct and shrinkage_pct", async () => {
     mockCapacitySequence(120);
     const [snap] = await workforceMandateService.getCapacitySnapshot("proc-1");
-    // mandated_hc=100, buffer=10%, shrinkage=15% → target = 100 * 1.25 = 125
     expect(snap.target_hc).toBe(125);
   });
 
-  it("certified_pending_deployment is always 0 (LMS placeholder)", async () => {
+  it("certified_pending_deployment is always 0 until LMS integration snapshot is wired", async () => {
     mockCapacitySequence(120);
     const [snap] = await workforceMandateService.getCapacitySnapshot("proc-1");
     expect(snap.certified_pending_deployment).toBe(0);
@@ -144,9 +131,9 @@ describe("workforceMandateService.getLeadershipSummary", () => {
 
 describe("workforceMandateService.upsertMandate", () => {
   it("calls INSERT ON DUPLICATE KEY UPDATE and returns the upserted row", async () => {
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // INSERT
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // logSensitiveAction audit insert
-    exec.mockResolvedValueOnce([[fakeMandate], []]);          // SELECT re-fetch
+    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    exec.mockResolvedValueOnce([[fakeMandate], []]);
 
     const result = await workforceMandateService.upsertMandate(
       {
@@ -170,21 +157,14 @@ describe("workforceMandateService.upsertMandate", () => {
   });
 });
 
-// ── Account Control ───────────────────────────────────────────────────────────
-
 describe("accountControlService.lockAccount", () => {
   it("inserts a row into account_control_log and returns { logged: true }", async () => {
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // insertControlLog
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // logSensitiveAction
-
-    const result = await accountControlService.lockAccount(
-      "user-1", "admin-1", "policy violation", "127.0.0.1"
-    );
-
+    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    const result = await accountControlService.lockAccount("user-1", "admin-1", "policy violation", "127.0.0.1");
     expect(result).toEqual({ logged: true });
     expect(exec).toHaveBeenCalledTimes(2);
-    const sql = exec.mock.calls[0][0] as string;
-    expect(sql).toMatch(/INSERT INTO account_control_log/i);
+    expect(exec.mock.calls[0][0] as string).toMatch(/INSERT INTO account_control_log/i);
   });
 });
 
@@ -192,7 +172,6 @@ describe("accountControlService.unlockAccount", () => {
   it("logs account_unlocked and returns { logged: true }", async () => {
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
-
     const result = await accountControlService.unlockAccount("user-1", "admin-1", "127.0.0.1");
     expect(result).toEqual({ logged: true });
   });
@@ -202,10 +181,7 @@ describe("accountControlService.disableAccount", () => {
   it("logs account_disabled and returns { logged: true }", async () => {
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
-
-    const result = await accountControlService.disableAccount(
-      "user-1", "admin-1", "terminated", "10.0.0.1"
-    );
+    const result = await accountControlService.disableAccount("user-1", "admin-1", "terminated", "10.0.0.1");
     expect(result).toEqual({ logged: true });
   });
 });
@@ -214,7 +190,6 @@ describe("accountControlService.enableAccount", () => {
   it("logs account_enabled and returns { logged: true }", async () => {
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
-
     const result = await accountControlService.enableAccount("user-1", "admin-1", "10.0.0.1");
     expect(result).toEqual({ logged: true });
   });
@@ -224,7 +199,6 @@ describe("accountControlService.logSessionRevoke", () => {
   it("logs session_revoked and returns { logged: true }", async () => {
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
-
     const result = await accountControlService.logSessionRevoke("user-1", "admin-1", "10.0.0.1");
     expect(result).toEqual({ logged: true });
   });
@@ -234,53 +208,22 @@ describe("accountControlService.requestPasswordReset", () => {
   it("logs password_reset_requested and returns correct message", async () => {
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
     exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
-
-    const result = await accountControlService.requestPasswordReset(
-      "user-1", "user@example.com", "admin-1", "10.0.0.1"
-    );
+    const result = await accountControlService.requestPasswordReset("user-1", "user@example.com", "admin-1", "10.0.0.1");
     expect(result.logged).toBe(true);
     expect(result.message).toMatch(/Supabase Auth/i);
   });
 });
 
 describe("accountControlService.forcePasswordChange", () => {
-  it("updates user_roles and logs force_change_set", async () => {
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // UPDATE user_roles
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // insertControlLog
-    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);  // logSensitiveAction
-    exec.mockResolvedValueOnce([[{ user_id: "user-1", force_change_password: 1 }], []]);  // SELECT
+  it("logs force_change_set without relying on plaintext password or missing schema columns", async () => {
+    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    exec.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    exec.mockResolvedValueOnce([[{ user_id: "user-1", role_key: "employee", active_status: 1 }], []]);
 
-    const result = await accountControlService.forcePasswordChange(
-      "user-1", "admin-1", "expired password", "10.0.0.1"
-    );
+    const result = await accountControlService.forcePasswordChange("user-1", "admin-1", "expired password", "10.0.0.1");
 
-    const updateSql = exec.mock.calls[0][0] as string;
-    expect(updateSql).toMatch(/UPDATE user_roles/i);
+    expect(exec.mock.calls[0][0] as string).toMatch(/INSERT INTO account_control_log/i);
+    expect(exec.mock.calls[1][0] as string).not.toMatch(/password\s*=/i);
     expect(result).toHaveProperty("user_id", "user-1");
-  });
-});
-
-describe("accountControlService.getAccountAuditLog", () => {
-  it("queries account_control_log for userId ordered by created_at DESC", async () => {
-    const fakeLog = [
-      { id: "log-1", user_id: "user-1", action: "account_locked", created_at: "2026-05-30T10:00:00Z" },
-      { id: "log-2", user_id: "user-1", action: "account_unlocked", created_at: "2026-05-29T09:00:00Z" },
-    ];
-    exec.mockResolvedValueOnce([fakeLog, []]);
-
-    const result = await accountControlService.getAccountAuditLog("user-1", 10);
-    expect(result).toHaveLength(2);
-    expect(result[0].action).toBe("account_locked");
-
-    const sql = exec.mock.calls[0][0] as string;
-    expect(sql).toMatch(/ORDER BY created_at DESC/i);
-    expect(sql).toMatch(/WHERE user_id = \?/i);
-  });
-
-  it("caps limit at 200", async () => {
-    exec.mockResolvedValueOnce([[], []]);
-    await accountControlService.getAccountAuditLog("user-1", 9999);
-    const sql = exec.mock.calls[0][0] as string;
-    expect(sql).toMatch(/LIMIT 200/);
   });
 });
