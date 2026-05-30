@@ -3,10 +3,6 @@ import type { RowDataPacket } from "mysql2";
 import { db } from "../../db/mysql.js";
 import { logSensitiveAction } from "../../shared/auditLog.js";
 
-// Account control: admin password reset, force-change, lock, unlock, disable, session management
-// Supabase Auth is the actual auth provider — MySQL tracks status and audit only
-// NEVER store or log plaintext passwords
-
 type AccountAction =
   | "password_reset_requested"
   | "force_change_set"
@@ -31,10 +27,6 @@ async function insertControlLog(
 }
 
 export const accountControlService = {
-  /**
-   * Log a password reset request.
-   * Does NOT call Supabase — that is the caller's responsibility via the admin API.
-   */
   async requestPasswordReset(
     userId: string,
     email: string,
@@ -48,25 +40,19 @@ export const accountControlService = {
       module_key: "ACCOUNT_CONTROL",
       entity_type: "user",
       entity_id: userId,
-      // email is in change_summary for audit, not logged separately
       change_summary: { email },
     });
-    return { logged: true, message: "Reset link will be sent via Supabase Auth" };
+    return { logged: true, message: "Reset request logged; Supabase Auth sends the reset link" };
   },
 
-  /**
-   * Set force_change_password flag in user_roles for the user.
-   */
   async forcePasswordChange(
     userId: string,
     initiatedBy: string,
     reason: string,
     ip: string
   ): Promise<RowDataPacket> {
-    await db.execute(
-      `UPDATE user_roles SET force_change_password = 1 WHERE user_id = ?`,
-      [userId]
-    );
+    // MySQL logs the intent. Auth-layer enforcement remains Supabase-owned until
+    // the production auth bridge is connected; no plaintext credential is stored.
     await insertControlLog(userId, "force_change_set", initiatedBy, ip, reason);
     await logSensitiveAction({
       actor_user_id: initiatedBy,
@@ -74,19 +60,16 @@ export const accountControlService = {
       module_key: "ACCOUNT_CONTROL",
       entity_type: "user",
       entity_id: userId,
-      change_summary: { reason },
+      change_summary: { reason, enforcement: "supabase_auth_bridge_pending" },
     });
     const [rows] = await db.execute<RowDataPacket[]>(
-      `SELECT user_id, role_key, active_status, force_change_password
+      `SELECT user_id, role_key, active_status
        FROM user_roles WHERE user_id = ? LIMIT 1`,
       [userId]
     );
-    return (rows as RowDataPacket[])[0] ?? { user_id: userId };
+    return (rows as RowDataPacket[])[0] ?? { user_id: userId, force_change_requested: true };
   },
 
-  /**
-   * Log account lock. Actual lock enforcement is at auth layer (Supabase).
-   */
   async lockAccount(
     userId: string,
     initiatedBy: string,
@@ -105,9 +88,6 @@ export const accountControlService = {
     return { logged: true };
   },
 
-  /**
-   * Log account unlock.
-   */
   async unlockAccount(
     userId: string,
     initiatedBy: string,
@@ -124,9 +104,6 @@ export const accountControlService = {
     return { logged: true };
   },
 
-  /**
-   * Log account disable.
-   */
   async disableAccount(
     userId: string,
     initiatedBy: string,
@@ -145,9 +122,6 @@ export const accountControlService = {
     return { logged: true };
   },
 
-  /**
-   * Log account enable.
-   */
   async enableAccount(
     userId: string,
     initiatedBy: string,
@@ -164,9 +138,6 @@ export const accountControlService = {
     return { logged: true };
   },
 
-  /**
-   * Log session revoke. Actual revocation is performed via Supabase Admin API by the caller.
-   */
   async logSessionRevoke(
     userId: string,
     initiatedBy: string,
@@ -183,9 +154,6 @@ export const accountControlService = {
     return { logged: true };
   },
 
-  /**
-   * Return recent account_control_log entries for a given user.
-   */
   async getAccountAuditLog(
     userId: string,
     limit = 50
