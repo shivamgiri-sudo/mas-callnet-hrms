@@ -25,17 +25,17 @@ router.use(requireAuth);
 /**
  * POST /api/account-control/reset-request
  * Body: { userId, reason? }
- * Admin or HR: log a password reset request for a user.
+ * Super Admin, Admin or HR: log a password reset request for a user.
  */
 router.post(
   "/reset-request",
-  requireRole("admin", "hr"),
+  requireRole("super_admin", "admin", "hr"),
   h(async (req: AuthenticatedRequest, res: Response) => {
-    const { userId, reason } = req.body as { userId?: string; reason?: string };
+    const { userId } = req.body as { userId?: string; reason?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
     const result = await accountControlService.requestPasswordReset(
       userId,
-      "",              // email not required at route level — service only logs it if provided
+      "",
       req.authUser!.id,
       req.ip ?? ""
     );
@@ -43,14 +43,9 @@ router.post(
   })
 );
 
-/**
- * POST /api/account-control/force-change
- * Body: { userId, reason? }
- * Admin: set force_change_password flag.
- */
 router.post(
   "/force-change",
-  requireRole("admin"),
+  requireRole("super_admin", "admin"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId, reason } = req.body as { userId?: string; reason?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
@@ -64,14 +59,9 @@ router.post(
   })
 );
 
-/**
- * POST /api/account-control/lock
- * Body: { userId, reason? }
- * Admin: log account lock.
- */
 router.post(
   "/lock",
-  requireRole("admin"),
+  requireRole("super_admin", "admin"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId, reason } = req.body as { userId?: string; reason?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
@@ -85,14 +75,9 @@ router.post(
   })
 );
 
-/**
- * POST /api/account-control/unlock
- * Body: { userId }
- * Admin: log account unlock.
- */
 router.post(
   "/unlock",
-  requireRole("admin"),
+  requireRole("super_admin", "admin"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.body as { userId?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
@@ -105,14 +90,9 @@ router.post(
   })
 );
 
-/**
- * POST /api/account-control/disable
- * Body: { userId, reason? }
- * Admin: log account disable.
- */
 router.post(
   "/disable",
-  requireRole("admin"),
+  requireRole("super_admin", "admin"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId, reason } = req.body as { userId?: string; reason?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
@@ -126,14 +106,9 @@ router.post(
   })
 );
 
-/**
- * POST /api/account-control/enable
- * Body: { userId }
- * Admin: log account enable.
- */
 router.post(
   "/enable",
-  requireRole("admin"),
+  requireRole("super_admin", "admin"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.body as { userId?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
@@ -146,14 +121,9 @@ router.post(
   })
 );
 
-/**
- * POST /api/account-control/revoke-session
- * Body: { userId }
- * Admin: log session revoke (actual Supabase revoke done by caller separately).
- */
 router.post(
   "/revoke-session",
-  requireRole("admin"),
+  requireRole("super_admin", "admin"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.body as { userId?: string };
     if (!userId) return res.status(400).json({ error: "userId required" });
@@ -166,13 +136,9 @@ router.post(
   })
 );
 
-/**
- * GET /api/account-control/audit-log/:userId
- * Admin or HR: retrieve account control audit log for a user.
- */
 router.get(
   "/audit-log/:userId",
-  requireRole("admin", "hr"),
+  requireRole("super_admin", "admin", "hr"),
   h(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
