@@ -52,6 +52,11 @@ export const atsService = {
   },
 
   async createCandidate(input: CreateCandidateInput, userId: string): Promise<AtsCandidate> {
+    const [dup] = await db.execute<RowDataPacket[]>(
+      "SELECT id FROM ats_candidate WHERE mobile = ? LIMIT 1", [input.mobile]
+    );
+    if ((dup as RowDataPacket[]).length > 0) throw new Error("This mobile already registered");
+
     const id = randomUUID();
     await db.execute(
       `INSERT INTO ats_candidate
