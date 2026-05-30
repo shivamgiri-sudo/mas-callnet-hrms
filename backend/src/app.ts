@@ -30,6 +30,9 @@ import { wfmExtRouter } from "./modules/wfm-extensions/wfm-ext.routes.js";
 import { managementRouter } from "./modules/management/management.routes.js";
 import { rosterGovRouter } from "./modules/roster/roster.governance.routes.js";
 import { rtaRouter } from "./modules/rta/rta.routes.js";
+import { demoRouter } from "./modules/demo/demo.routes.js";
+import { accountControlRouter } from "./modules/account-control/account.control.routes.js";
+import { workforceMandateRouter } from "./modules/workforce-mandate/workforce.mandate.routes.js";
 
 export const app = express();
 
@@ -89,6 +92,7 @@ app.use("/api/wfm-ext", wfmExtRouter);
 app.use("/api/management", managementRouter);
 app.use("/api/roster-gov", rosterGovRouter);
 app.use("/api/rta", rtaRouter);
+app.use("/api/demo", demoRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

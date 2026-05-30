@@ -23,6 +23,7 @@ SOURCE sql/018_payroll_exit_completion.sql;
 SOURCE sql/019_performance_surfaces.sql;
 SOURCE sql/020_roster_governance.sql;
 SOURCE sql/021_attendance_leave_rta.sql;
+SOURCE sql/022_account_control_workforce_mandate.sql;
 
 SELECT 'mas_hrms schema complete' AS status;
 SHOW TABLES;
